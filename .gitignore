@@ -1,0 +1,23 @@
+# 컴 Secrets - NEVER push these 컴
+application.properties
+.env
+*.env
+ECHO is off.
+# 컴 Backend build 컴
+/backend/target/
+*.class
+*.jar
+*.war
+ECHO is off.
+# 컴 Frontend build 컴
+/frontend/node_modules/
+/frontend/build/
+/frontend/dist/
+/frontend/.next/
+ECHO is off.
+# 컴 IDE files 컴
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
