@@ -17,17 +17,17 @@ A mobile-friendly device insurance tracker app. Users photograph serial numbers 
 | Role | Members |
 |----|----|
 | Frontend | Kens, Mo |
-| Backend | Uyanda, Malose, Akil |
-| TBC | Thendo, Keke |
+| Backend | Uyanda, Malose, Akil, Keke|
+| Machine Learning/Analytics | Thendo|
 
 ## Project Structure
 
 ```
 insure-it/
-ÃÄÄ frontend/        <-- React web app
-ÃÄÄ backend/         <-- Spring Boot API
-ÃÄÄ .gitignore
-ÀÄÄ README.md
+ÃƒÃ„Ã„ frontend/        <-- React web app
+ÃƒÃ„Ã„ backend/         <-- Spring Boot API
+ÃƒÃ„Ã„ .gitignore
+Ã€Ã„Ã„ README.md
 ```
 
 ## Getting Started
