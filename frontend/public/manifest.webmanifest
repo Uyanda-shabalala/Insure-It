@@ -1,0 +1,17 @@
+{
+  "name": "Insure-It",
+  "short_name": "Insure-It",
+  "description": "Device insurance inventory and claims workspace",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0b10",
+  "theme_color": "#6d4aff",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
