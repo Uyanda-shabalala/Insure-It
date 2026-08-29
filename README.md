@@ -46,4 +46,3 @@ npm start
 ```
 
 ## Meeting Schedule
-Weekly Mondays at 7:30 PM
