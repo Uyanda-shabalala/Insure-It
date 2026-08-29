@@ -1,6 +1,6 @@
 # Insure-It
 
-A mobile-friendly device insurance tracker app. Users photograph serial numbers of computing devices, OCR extracts the data via the Claude API, and records are stored with insurance provider details.
+A mobile-friendly device insurance tracker app. Users photograph serial numbers of computing devices, OCR extracts the data via the Groq API, and records are stored with insurance provider details.
 
 ## Tech Stack
 
