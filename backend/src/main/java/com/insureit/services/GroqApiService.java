@@ -55,18 +55,22 @@ public class GroqApiService {
         this.apiUrl = apiUrl;
         this.model = model;
     }
-
+//actual  Request send to Groq Ai Api
     public SerialNumberResponse sendToGroq(String base64Image) {
+
         String imageData = validateImage(base64Image);
+
         if (apiKey.isBlank()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Groq API key is not configured");
         }
+
         Map<String, Object> requestBody = Map.of(
                 "model", model,
                 "response_format", Map.of("type", "json_object"),
                 "messages", List.of(Map.of("role", "user", "content", List.of(
                         Map.of("type", "text", "text", PROMPT),
                         Map.of("type", "image_url", "image_url", Map.of("url", imageData))))));
+
         try {
             JsonNode response = restClient.post().uri(apiUrl)
                     .headers(headers -> headers.setBearerAuth(apiKey))
@@ -96,7 +100,7 @@ public class GroqApiService {
             if (exception.getStatusCode().value() == 429) {
                 throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Groq rate limit reached; try again later");
             }
-            // Do not expose upstream bodies, credentials, or submitted images.
+            // Do not expose  credentials, or submitted images.
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Groq could not process the image");
         } catch (ResourceAccessException exception) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Groq is temporarily unreachable");
@@ -104,7 +108,7 @@ public class GroqApiService {
             throw invalidResponse();
         }
     }
-
+//image validation
     private String validateImage(String image) {
         if (image == null || image.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "base64Image is required");
