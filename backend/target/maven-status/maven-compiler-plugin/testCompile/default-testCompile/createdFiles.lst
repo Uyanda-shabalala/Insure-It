@@ -1,1 +1,4 @@
 com\insureit\GroqApiIntegrationTest.class
+com\insureit\OcrSecurityTest.class
+com\insureit\OcrDefaultSecurityTest.class
+com\insureit\OcrProductionSecurityTest.class

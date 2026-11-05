@@ -1,7 +1,6 @@
-com\insureit\services\GroqApiService.class
-com\insureit\controllers\GroqApiController.class
-com\insureit\models\SerialNumberResponse$Status.class
-com\insureit\controllers\GroqApiController$ImageRequest.class
-com\insureit\config\SecurityConfig.class
+com\insureit\models\package-info.class
 com\insureit\InsureItApplication.class
+com\insureit\services\GroqApiService.class
+com\insureit\models\SerialNumberResponse$Status.class
+com\insureit\config\SecurityConfig.class
 com\insureit\models\SerialNumberResponse.class
