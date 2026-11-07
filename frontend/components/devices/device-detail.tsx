@@ -1,191 +1,311 @@
-"use client";
+﻿"use client";
 
-import { useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, CalendarDays, FileText, Pencil, Plus, Shield, Trash2, X } from "lucide-react";
-import { useForm } from "react-hook-form";
-import { claimFormSchema, type ClaimFormValues, type Device } from "@/lib/domain/device";
-import { formatCurrency, formatDate, getDeviceStatus } from "@/lib/format";
+import { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRightLeft,
+  RefreshCw,
+  ShieldCheck,
+  UserRound,
+  Wrench,
+} from "lucide-react";
+import {
+  employeeDepartment,
+  employeeName,
+  type Device,
+} from "@/lib/domain/device";
+import { getDeviceStatus } from "@/lib/format";
+import { errorMessage } from "@/lib/services/api-client";
+import {
+  assignmentAvailable,
+  getDevice,
+  returnAvailable,
+} from "@/lib/services/device-service";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { DeviceIcon } from "@/components/shared/device-icon";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { ApiState } from "@/components/shared/api-state";
+import { DeviceAssignment } from "@/components/devices/device-assignment";
 
 interface DeviceDetailProps {
-  device: Device;
+  deviceId: string;
   onBack: () => void;
-  onEdit: () => void;
-  onRemove: () => void;
-  onAddClaim: (values: ClaimFormValues) => void;
-  onRemoveClaim: (claimId: string) => void;
+  onChanged: () => void;
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
+function DetailItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
   return (
     <div className="border-b py-3 last:border-b-0">
-      <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{label}</dt>
-      <dd className="mt-1 text-sm font-bold">{value}</dd>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+        {label}
+      </dt>
+      <dd className="mt-1 break-words text-sm font-bold">
+        {value || "Not provided"}
+      </dd>
     </div>
   );
 }
 
-export function DeviceDetail({ device, onBack, onEdit, onRemove, onAddClaim, onRemoveClaim }: DeviceDetailProps) {
-  const [claimOpen, setClaimOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<ClaimFormValues>({
-    resolver: zodResolver(claimFormSchema),
-    defaultValues: { date: "", description: "", amount: "" },
-  });
+const policyFields: Record<string, string> = {
+  id: "Policy ID",
+  name: "Policy name",
+  policyNumber: "Policy number",
+  provider: "Provider",
+  insurer: "Insurer",
+  startDate: "Start date",
+  endDate: "End date",
+  expiryDate: "Expiry date",
+  status: "Policy status",
+};
 
-  function submitClaim(values: ClaimFormValues) {
-    onAddClaim(values);
-    reset();
-    setClaimOpen(false);
+export function DeviceDetail({
+  deviceId,
+  onBack,
+  onChanged,
+}: DeviceDetailProps) {
+  const [device, setDevice] = useState<Device | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [action, setAction] = useState<"assign" | "return" | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void getDevice(deviceId, controller.signal)
+      .then((record) => {
+        if (!controller.signal.aborted) {
+          setDevice(record);
+          setError(null);
+        }
+      })
+      .catch((caught) => {
+        if (!controller.signal.aborted) setError(errorMessage(caught));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [deviceId, revision]);
+
+  function refresh() {
+    setLoading(true);
+    setError(null);
+    setRevision((value) => value + 1);
   }
+  const ready = device && !loading && !error;
+  const status = getDeviceStatus(device?.status);
+  const policyRows = device?.insurancePolicy
+    ? Object.entries(device.insurancePolicy).filter(
+        ([key, value]) =>
+          policyFields[key] &&
+          (typeof value === "string" || typeof value === "number"),
+      )
+    : [];
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <Button variant="ghost" className="-ml-3 mb-2" onClick={onBack}><ArrowLeft size={16} /> Back to inventory</Button>
-          <div className="flex items-center gap-4">
-            <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[var(--primary-soft)] text-[var(--primary)]">
-              {device.photo ? <img src={device.photo} alt="" className="size-full object-cover" /> : <DeviceIcon type={device.type} size={28} />}
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-3xl font-extrabold tracking-tight">{device.name}</h1>
-                <StatusBadge status={getDeviceStatus(device.expiryDate)} />
-              </div>
-              <p className="mt-1 text-sm text-[var(--muted)]">{device.type} · {device.serial || "No serial recorded"}</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={onEdit}><Pencil size={16} /> Edit</Button>
-          <Button variant="outlineDanger" onClick={() => setDeleteOpen(true)}><Trash2 size={16} /> Remove</Button>
-        </div>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="ghost" className="-ml-3" onClick={onBack}>
+          <ArrowLeft size={16} /> Back to Inventory
+        </Button>
+        <Button variant="secondary" onClick={refresh} disabled={loading}>
+          <RefreshCw size={16} /> Refresh details
+        </Button>
       </header>
-
-      <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div>
-                <CardTitle>Policy summary</CardTitle>
-                <CardDescription>Primary cover and identification fields.</CardDescription>
-              </div>
-              <Shield className="text-[var(--primary)]" size={20} />
-            </CardHeader>
-            <CardContent>
-              <dl>
-                <DetailItem label="Insurance provider" value={device.insurer} />
-                <DetailItem label="Policy number" value={device.policyNumber || "—"} />
-                <DetailItem label="Monthly premium" value={formatCurrency(device.premium)} />
-                <DetailItem label="Sum insured" value={formatCurrency(device.sumInsured)} />
-                <DetailItem label="Cover expiry" value={formatDate(device.expiryDate)} />
-              </dl>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div>
-                <CardTitle>Evidence</CardTitle>
-                <CardDescription>Image stored with this browser-side record.</CardDescription>
-              </div>
-              <FileText className="text-[var(--primary)]" size={20} />
-            </CardHeader>
-            <CardContent>
-              {device.photo ? (
-                <img src={device.photo} alt={`Evidence for ${device.name}`} className="aspect-[4/3] w-full rounded-2xl border object-cover" />
-              ) : (
-                <div className="grid aspect-[4/3] place-items-center rounded-2xl border border-dashed bg-[var(--surface-muted)] text-sm text-[var(--muted)]">No evidence image attached</div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Claims history</CardTitle>
-              <CardDescription>{device.claims.length} claim{device.claims.length === 1 ? "" : "s"} recorded for this device.</CardDescription>
+      <ApiState loading={loading} error={error} onRetry={refresh} />
+      {notice ? (
+        <p
+          role="status"
+          className="rounded-xl bg-[var(--success-soft)] p-4 text-sm text-[var(--success)]"
+        >
+          {notice}
+        </p>
+      ) : null}
+      {ready ? (
+        <>
+          <div>
+            <p className="text-sm font-bold text-[var(--primary)]">
+              Device Details
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <h1 className="break-words text-3xl font-extrabold tracking-tight">
+                {device.name}
+              </h1>
+              <StatusBadge status={device.status} />
             </div>
-            <Button size="sm" onClick={() => setClaimOpen(true)}><Plus size={15} /> Add claim</Button>
-          </CardHeader>
-          <CardContent>
-            {device.claims.length ? (
-              <div className="space-y-3">
-                {device.claims.map((claim) => (
-                  <article key={claim.id} className="rounded-2xl border p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-bold">{claim.description}</h3>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--muted)]"><CalendarDays size={13} /> {formatDate(claim.date)}</p>
-                      </div>
-                      <Button aria-label={`Remove claim ${claim.description}`} variant="ghost" size="icon" onClick={() => onRemoveClaim(claim.id)}><X size={16} /></Button>
-                    </div>
-                    <p className="mt-4 text-sm font-extrabold text-[var(--primary)]">{formatCurrency(claim.amount)}</p>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed bg-[var(--surface-muted)] p-8 text-center">
+            <p className="mt-2 break-all text-sm text-[var(--muted)]">
+              {device.serialNumber || "Serial number not provided"}
+            </p>
+          </div>
+          <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <Card>
+              <CardHeader>
                 <div>
-                  <FileText className="mx-auto text-[var(--muted)]" size={28} />
-                  <h3 className="mt-3 font-bold">No claims recorded</h3>
-                  <p className="mt-1 text-sm text-[var(--muted)]">Add a claim to keep the full insurance history with this device.</p>
-                  <Button className="mt-5" onClick={() => setClaimOpen(true)}><Plus size={16} /> Add first claim</Button>
+                  <CardTitle>Device Information</CardTitle>
+                  <CardDescription>
+                    Authoritative asset details returned by the backend.
+                  </CardDescription>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      <Dialog open={claimOpen} onOpenChange={setClaimOpen} title="Add claim" description={`Record a claim against ${device.name}.`}>
-        <form className="space-y-4 p-5" onSubmit={handleSubmit(submitClaim)}>
-          <div>
-            <Label htmlFor="claim-date">Claim date *</Label>
-            <Input id="claim-date" type="date" {...register("date")} />
-            {errors.date ? <p className="mt-1 text-xs font-semibold text-[var(--danger)]">{errors.date.message}</p> : null}
-          </div>
-          <div>
-            <Label htmlFor="claim-description">Description *</Label>
-            <Textarea id="claim-description" placeholder="Describe the loss, damage, or repair" {...register("description")} />
-            {errors.description ? <p className="mt-1 text-xs font-semibold text-[var(--danger)]">{errors.description.message}</p> : null}
-          </div>
-          <div>
-            <Label htmlFor="claim-amount">Payout or repair amount (R)</Label>
-            <Input id="claim-amount" type="number" min="0" step="0.01" placeholder="0.00" {...register("amount")} />
-            {errors.amount ? <p className="mt-1 text-xs font-semibold text-[var(--danger)]">{errors.amount.message}</p> : null}
-          </div>
-          <div className="flex justify-end gap-2 border-t pt-4">
-            <Button variant="secondary" onClick={() => setClaimOpen(false)}>Cancel</Button>
-            <Button type="submit">Save claim</Button>
-          </div>
-        </form>
-      </Dialog>
-
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen} title="Remove device" description="This action cannot be undone.">
-        <div className="p-5">
-          <p className="text-sm leading-6 text-[var(--muted)]">Remove <strong className="text-[var(--foreground)]">{device.name}</strong>, its policy details, evidence image, and {device.claims.length} claim record{device.claims.length === 1 ? "" : "s"}?</p>
-          <div className="mt-5 flex justify-end gap-2 border-t pt-4">
-            <Button variant="secondary" onClick={() => setDeleteOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={onRemove}><Trash2 size={16} /> Remove device</Button>
-          </div>
-        </div>
-      </Dialog>
+                <Wrench size={20} className="text-[var(--primary)]" />
+              </CardHeader>
+              <CardContent>
+                <dl>
+                  <DetailItem label="Device name" value={device.name} />
+                  <DetailItem label="Brand" value={device.brand.name} />
+                  <DetailItem label="Model" value={device.model} />
+                  <DetailItem
+                    label="Device type"
+                    value={device.deviceType.name}
+                  />
+                  <DetailItem
+                    label="Serial number"
+                    value={device.serialNumber}
+                  />
+                  <DetailItem label="Location" value={device.location} />
+                  <DetailItem
+                    label="Lifecycle status"
+                    value={<StatusBadge status={device.status} />}
+                  />
+                </dl>
+              </CardContent>
+            </Card>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <div>
+                    <CardTitle>Assignment Information</CardTitle>
+                    <CardDescription>
+                      Current holder information, when supplied by the backend.
+                    </CardDescription>
+                  </div>
+                  <UserRound size={20} className="text-[var(--primary)]" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <dl>
+                    <DetailItem
+                      label="Current employee"
+                      value={
+                        device.currentEmployee
+                          ? employeeName(device.currentEmployee)
+                          : status === "available"
+                            ? "No employee assigned"
+                            : "Not returned by the backend"
+                      }
+                    />
+                    <DetailItem
+                      label="Employee number"
+                      value={device.currentEmployee?.employeeNumber}
+                    />
+                    <DetailItem
+                      label="Department"
+                      value={
+                        device.currentEmployee
+                          ? employeeDepartment(device.currentEmployee)
+                          : null
+                      }
+                    />
+                  </dl>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      disabled={status !== "available"}
+                      onClick={() => setAction("assign")}
+                    >
+                      <UserRound size={16} /> Assign Device
+                    </Button>
+                    {status === "assigned" ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() => setAction("return")}
+                      >
+                        <ArrowRightLeft size={16} /> Return Device
+                      </Button>
+                    ) : null}
+                  </div>
+                  {status !== "available" ? (
+                    <p className="text-xs leading-5 text-[var(--muted)]">
+                      Only available devices can be assigned.
+                    </p>
+                  ) : null}
+                  {!assignmentAvailable || !returnAvailable ? (
+                    <p className="text-xs leading-5 text-[var(--muted)]">
+                      {!assignmentAvailable
+                        ? "Assignment confirmation is unavailable until the backend endpoint is connected. "
+                        : ""}
+                      {!returnAvailable
+                        ? "Return confirmation is unavailable until the backend endpoint is connected."
+                        : ""}
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <div>
+                    <CardTitle>Insurance Information</CardTitle>
+                    <CardDescription>
+                      Optional policy information linked to this asset.
+                    </CardDescription>
+                  </div>
+                  <ShieldCheck size={20} className="text-[var(--primary)]" />
+                </CardHeader>
+                <CardContent>
+                  {device.insurancePolicy ? (
+                    policyRows.length ? (
+                      <dl>
+                        {policyRows.map(([key, value]) => (
+                          <DetailItem
+                            key={key}
+                            label={policyFields[key]}
+                            value={String(value)}
+                          />
+                        ))}
+                      </dl>
+                    ) : (
+                      <p className="text-sm text-[var(--muted)]">
+                        Policy linked; additional details were not returned.
+                      </p>
+                    )
+                  ) : (
+                    <p className="rounded-xl bg-[var(--surface-muted)] p-4 text-sm text-[var(--muted)]">
+                      Uninsured / No policy linked
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+          {action ? (
+            <DeviceAssignment
+              key={`${device.id}-${action}`}
+              device={device}
+              mode={action}
+              onClose={() => setAction(null)}
+              onSuccess={() => {
+                setNotice(
+                  action === "assign"
+                    ? "Assignment confirmed by the backend. Refreshing device records."
+                    : "Return confirmed by the backend. Refreshing device records.",
+                );
+                refresh();
+                onChanged();
+              }}
+            />
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }

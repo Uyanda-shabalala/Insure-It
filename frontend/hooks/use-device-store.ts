@@ -1,136 +1,53 @@
-"use client";
+﻿"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Claim, ClaimFormValues, Device, DeviceFormValues } from "@/lib/domain/device";
-import { deviceRepository } from "@/lib/storage/device-repository";
-
-function toNullableNumber(value: string) {
-  return value === "" ? null : Number(value);
-}
-
-function resolveType(values: DeviceFormValues) {
-  return values.type === "Other" ? values.customType.trim() || "Other" : values.type;
-}
-
-function resolveInsurer(values: DeviceFormValues) {
-  return values.insurer === "Other" ? values.customInsurer.trim() || "Other" : values.insurer;
-}
+import { useCallback, useEffect, useState } from "react";
+import type { Device, DeviceFormValues } from "@/lib/domain/device";
+import { listDevices, registerDevice } from "@/lib/services/device-service";
+import { errorMessage } from "@/lib/services/api-client";
 
 export function useDeviceStore() {
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [isReady, setIsReady] = useState(false);
-  const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const [devices, setDevices] = useState<Device[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    let active = true;
-    void deviceRepository.read().then((stored) => {
-      if (!active) return;
-      setDevices(stored);
-      setIsReady(true);
-    });
-    return () => {
-      active = false;
-    };
+    const controller = new AbortController();
+    void listDevices(controller.signal)
+      .then((records) => {
+        if (!controller.signal.aborted) {
+          setDevices(records);
+          setError(null);
+        }
+      })
+      .catch((caught) => {
+        if (!controller.signal.aborted) setError(errorMessage(caught));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+    return () => controller.abort();
+  }, [revision]);
+
+  const refresh = useCallback(() => {
+    setIsLoading(true);
+    setError(null);
+    setRevision((value) => value + 1);
   }, []);
 
-  useEffect(() => {
-    if (!isReady) return;
-    void deviceRepository
-      .write(devices)
-      .then(() => setPersistenceError(null))
-      .catch(() => setPersistenceError("Changes are visible now but could not be saved in this browser."));
-  }, [devices, isReady]);
+  const addDevice = useCallback(
+    async (values: DeviceFormValues) => {
+      const saved = await registerDevice(values);
+      // Only confirmed server data is ever placed in inventory state.
+      setDevices((current) => [
+        saved,
+        ...(current ?? []).filter((item) => item.id !== saved.id),
+      ]);
+      refresh();
+      return saved;
+    },
+    [refresh],
+  );
 
-  const addDevice = useCallback((values: DeviceFormValues) => {
-    const now = Date.now();
-    const device: Device = {
-      id: crypto.randomUUID(),
-      name: values.name.trim(),
-      type: resolveType(values),
-      serial: values.serial.trim(),
-      insurer: resolveInsurer(values),
-      policyNumber: values.policyNumber.trim(),
-      expiryDate: values.expiryDate,
-      premium: toNullableNumber(values.premium),
-      sumInsured: toNullableNumber(values.sumInsured),
-      photo: values.photo,
-      claims: [],
-      addedAt: now,
-      updatedAt: now,
-    };
-    setDevices((current) => [device, ...current]);
-    return device.id;
-  }, []);
-
-  const updateDevice = useCallback((id: string, values: DeviceFormValues) => {
-    setDevices((current) =>
-      current.map((device) =>
-        device.id === id
-          ? {
-              ...device,
-              name: values.name.trim(),
-              type: resolveType(values),
-              serial: values.serial.trim(),
-              insurer: resolveInsurer(values),
-              policyNumber: values.policyNumber.trim(),
-              expiryDate: values.expiryDate,
-              premium: toNullableNumber(values.premium),
-              sumInsured: toNullableNumber(values.sumInsured),
-              photo: values.photo,
-              updatedAt: Date.now(),
-            }
-          : device,
-      ),
-    );
-  }, []);
-
-  const removeDevice = useCallback((id: string) => {
-    setDevices((current) => current.filter((device) => device.id !== id));
-  }, []);
-
-  const addClaim = useCallback((deviceId: string, values: ClaimFormValues) => {
-    const claim: Claim = {
-      id: crypto.randomUUID(),
-      date: values.date,
-      description: values.description.trim(),
-      amount: toNullableNumber(values.amount),
-    };
-    setDevices((current) =>
-      current.map((device) =>
-        device.id === deviceId
-          ? { ...device, claims: [claim, ...device.claims], updatedAt: Date.now() }
-          : device,
-      ),
-    );
-  }, []);
-
-  const removeClaim = useCallback((deviceId: string, claimId: string) => {
-    setDevices((current) =>
-      current.map((device) =>
-        device.id === deviceId
-          ? { ...device, claims: device.claims.filter((claim) => claim.id !== claimId), updatedAt: Date.now() }
-          : device,
-      ),
-    );
-  }, []);
-
-  const resetDemoData = useCallback(async () => {
-    const reset = await deviceRepository.reset();
-    setDevices(reset);
-  }, []);
-
-  const byId = useMemo(() => new Map(devices.map((device) => [device.id, device])), [devices]);
-
-  return {
-    devices,
-    byId,
-    isReady,
-    persistenceError,
-    addDevice,
-    updateDevice,
-    removeDevice,
-    addClaim,
-    removeClaim,
-    resetDemoData,
-  };
+  return { devices, isLoading, error, refresh, addDevice };
 }

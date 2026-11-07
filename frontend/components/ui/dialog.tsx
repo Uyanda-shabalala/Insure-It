@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,8 +14,17 @@ interface DialogProps {
   className?: string;
 }
 
-export function Dialog({ open, onOpenChange, title, description, children, className }: DialogProps) {
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+  className,
+}: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -27,6 +36,8 @@ export function Dialog({ open, onOpenChange, title, description, children, class
   return (
     <dialog
       ref={dialogRef}
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
       onCancel={(event) => {
         event.preventDefault();
         onOpenChange(false);
@@ -34,13 +45,32 @@ export function Dialog({ open, onOpenChange, title, description, children, class
       onClose={() => onOpenChange(false)}
       className="m-auto max-h-[92vh] w-[calc(100%-2rem)] max-w-xl overflow-visible rounded-3xl bg-transparent p-0 text-[var(--foreground)] backdrop:bg-black/60"
     >
-      <section className={cn("max-h-[92vh] overflow-y-auto rounded-3xl border bg-[var(--surface)] shadow-2xl", className)}>
+      <section
+        className={cn(
+          "max-h-[92vh] overflow-y-auto rounded-3xl border bg-[var(--surface)] shadow-2xl",
+          className,
+        )}
+      >
         <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b bg-[var(--surface)] p-5">
           <div>
-            <h2 className="text-xl font-bold">{title}</h2>
-            {description ? <p className="mt-1 text-sm text-[var(--muted)]">{description}</p> : null}
+            <h2 id={titleId} className="text-xl font-bold">
+              {title}
+            </h2>
+            {description ? (
+              <p
+                id={descriptionId}
+                className="mt-1 text-sm text-[var(--muted)]"
+              >
+                {description}
+              </p>
+            ) : null}
           </div>
-          <Button aria-label="Close dialog" variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
+          <Button
+            aria-label="Close dialog"
+            variant="ghost"
+            size="icon"
+            onClick={() => onOpenChange(false)}
+          >
             <X size={18} />
           </Button>
         </header>

@@ -65,7 +65,7 @@ The prototype established a coherent user journey: dashboard, image capture, ser
 | UI system | Added shadcn-compatible aliases and reusable local primitives | Complete |
 | Forms | Added typed schemas and structured validation | Complete |
 | Persistence | Replaced `window.storage` with a versioned repository abstraction | Complete |
-| OCR | Added configurable OCR adapter and clearly labelled demo fallback | Complete |
+| OCR | Multipart image upload with serial review and manual entry on failure | Complete |
 | Images | Added image type/size checks and browser-side resizing | Complete |
 | Device lifecycle | Added create, edit, detail, remove, search, sort, filter, and export | Complete |
 | Claims | Added create and remove flows with validation | Complete |

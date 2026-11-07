@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Insure-It | Device Insurance Inventory",
-  description: "Manage insured devices, cover, policy details, and claims from one responsive workspace.",
+  title: "Insure-It | IT Asset Management",
+  description: "Register IT devices, track inventory and employee assignments, and review optional linked policies.",
   applicationName: "Insure-It",
   manifest: "/manifest.webmanifest",
 };
