@@ -55,16 +55,16 @@ public class DeviceService {
 
 
 
-        device.setName(request.name());
-        device.setSerialNumber(request.serialNumber() == null || request.serialNumber().isBlank() ? null : request.serialNumber());
-        device.setModel(request.model());
+        device.setName(TextInput.text(request.name(), "name", true, 120));
+        device.setSerialNumber(TextInput.serial(request.serialNumber()));
+        device.setModel(TextInput.text(request.model(), "model", false, 120));
         device.setBrand(brandRepo.findById(request.brandId()).orElseThrow(() -> new DeviceApiException(HttpStatus.NOT_FOUND, "Brand not found")));
         device.setDeviceType(deviceTypeRepo.findById(request.deviceTypeId()).orElseThrow(() -> new DeviceApiException(HttpStatus.NOT_FOUND, "Device type not found")));
         device.setStatus("available");
-        device.setLocation(request.location());
+        device.setLocation(TextInput.text(request.location(), "location", false, 120));
 
         Device savedDevice;
-        if (device.getSerialNumber() != null && deviceRepo.existsBySerialNumber(device.getSerialNumber())) {
+        if (device.getSerialNumber() != null && deviceRepo.existsNormalizedSerial(device.getSerialNumber())) {
             throw new DeviceApiException(HttpStatus.CONFLICT, "A device with this serial number already exists");
         }{
             savedDevice = deviceRepo.save(device);

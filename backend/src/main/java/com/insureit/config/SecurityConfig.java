@@ -37,6 +37,7 @@ public class SecurityConfig {
         } else {
 
             http.authorizeHttpRequests(auth -> auth
+                    .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                     .anyRequest().authenticated()
             );
         }

@@ -48,6 +48,52 @@ class DeviceWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.status").value("available")).andReturn().getResponse().getContentAsString();
         return UUID.fromString(json.readTree(response).path("id").asText());
     }
+    @Test void repairsAndLossPreserveHolderAndRetirementIsTerminal() throws Exception {
+        UUID id = register();
+        assignmentService.assign(id, employeeId);
+        state(id, "send_for_repair", "repair");
+        assertThat(assignmentService.current(id).employee().id()).isEqualTo(employeeId);
+        state(id, "complete_repair", "assigned");
+        state(id, "mark_lost", "lost");
+        state(id, "recover", "assigned");
+        mvc.perform(patch("/api/devices/" + id + "/state").with(httpBasic("test-user", "test-password")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"action\":\"retire\"}"))
+                .andExpect(status().isConflict());
+        assignmentService.returnDevice(id);
+        state(id, "send_for_repair", "repair"); state(id, "complete_repair", "available");
+        state(id, "retire", "retired");
+        assertThatThrownBy(() -> assignmentService.assign(id, employeeId)).hasMessageContaining("not available");
+    }
+    void state(UUID id, String action, String expected) throws Exception {
+        mvc.perform(patch("/api/devices/" + id + "/state").with(httpBasic("test-user", "test-password")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("action", action))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value(expected));
+    }
+    @Test void normalizedExistingSerialCannotBeRegisteredAgain() throws Exception {
+        register();
+        mvc.perform(post("/api/devices").with(httpBasic("test-user", "test-password")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("name", "Other laptop", "serialNumber", " serial001 ", "brandId", brandId, "deviceTypeId", typeId))))
+                .andExpect(status().isConflict());
+    }
+    @Test void optionalInsuranceCanBeCreatedLinkedAndRemoved() throws Exception {
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+        jdbc.execute("create table if not exists insurance_providers (id uuid primary key, name varchar(120) not null, phone_number varchar(30))");
+        jdbc.update("delete from insurance_providers");
+        UUID id = register();
+        var provider = mvc.perform(post("/api/insurance-providers").with(httpBasic("test-user", "test-password")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"QA Cover\",\"phoneNumber\":\"+27 11 555 1234\"}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.phoneNumber").value("+27 11 555 1234")).andReturn().getResponse().getContentAsString();
+        var policy = mvc.perform(post("/api/insurance-policies").with(httpBasic("test-user", "test-password")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("providerId", json.readTree(provider).path("id").asText(), "policyNumber", "POL-" + id, "startDate", "2026-01-01", "endDate", "2027-01-01"))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        mvc.perform(patch("/api/devices/" + id + "/insurance").with(httpBasic("test-user", "test-password")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of("policyId", json.readTree(policy).path("id").asText(), "insuredValue", 2500))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.insurancePolicy.insurerName").value("QA Cover"));
+        mvc.perform(patch("/api/devices/" + id + "/insurance").with(httpBasic("test-user", "test-password")).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"policyId\":null}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.insurancePolicy").isEmpty());
+    }
+    @Autowired javax.sql.DataSource dataSource;
     @Test void registerListAssignAndReturnPersistTogether() throws Exception {
         UUID id = register();
         mvc.perform(get("/api/devices").with(httpBasic("test-user", "test-password")))

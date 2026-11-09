@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2, UserPlus } from "lucide-react";
 import type { EmployeeInput } from "@/lib/api/devices";
+import { readableText } from "@/lib/domain/device";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +28,10 @@ export function EmployeeCreateForm({ onSave, onCancel }: EmployeeCreateFormProps
     if (busy) return;
     if (!values.employeeNumber.trim() || !values.fullName.trim()) {
       setError("Enter an employee number and full name.");
+      return;
+    }
+    if (!readableText(true, 80).safeParse(values.employeeNumber).success || !readableText(true).safeParse(values.fullName).success || !readableText().safeParse(values.department).success) {
+      setError("Use letters or numbers with ordinary punctuation in employee details.");
       return;
     }
     setBusy(true);

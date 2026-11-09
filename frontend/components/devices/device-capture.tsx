@@ -23,13 +23,15 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BatchCapture } from "@/components/devices/batch-capture";
 
 interface DeviceCaptureProps {
+  registered?: string[];
   onContinue: (draft: DeviceDraft) => void;
   onCancel: () => void;
 }
 
-export function DeviceCapture({ onContinue, onCancel }: DeviceCaptureProps) {
+export function DeviceCapture({ onContinue, onCancel, registered = [] }: DeviceCaptureProps) {
   const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
 
@@ -99,6 +101,7 @@ export function DeviceCapture({ onContinue, onCancel }: DeviceCaptureProps) {
         </p>
       </header>
 
+      <BatchCapture onContinue={onContinue} registered={registered} />
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="overflow-hidden">
           <CardHeader>

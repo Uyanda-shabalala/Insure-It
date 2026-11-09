@@ -24,6 +24,7 @@ public class IntegrationPreview {
                 "--spring.datasource.url=jdbc:h2:mem:insureit-browser;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
                 "--server.port=8088", "--groq.api.url=http://127.0.0.1:" + provider.getAddress().getPort() + "/groq");
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { context.close(); provider.stop(0); }));
+        context.getBean(org.springframework.jdbc.core.JdbcTemplate.class).execute("create table insurance_providers (id uuid primary key, name varchar(120) not null, phone_number varchar(30))");
         Brand brand = new Brand(); brand.setName("Dell"); context.getBean(BrandRepo.class).save(brand);
         DeviceType type = new DeviceType(); type.setName("Laptop"); context.getBean(DeviceTypeRepo.class).save(type);
         if (!Boolean.getBoolean("preview.emptyEmployees")) {

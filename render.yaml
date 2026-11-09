@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: insure-it-api
+    runtime: docker
+    plan: free
+    branch: integration/mvp
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    autoDeployTrigger: "off"
+    healthCheckPath: /api/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: production
+      - key: SERVER_ADDRESS
+        value: 0.0.0.0
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: SUPABASE_DB_USERNAME
+        sync: false
+      - key: SUPABASE_DB_PASSWORD
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SPRING_SECURITY_USER_NAME
+        sync: false
+      - key: SPRING_SECURITY_USER_PASSWORD
+        sync: false

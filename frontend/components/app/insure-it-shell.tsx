@@ -26,6 +26,7 @@ export function InsureItShell() {
   const [view, setView] = useState<View>("dashboard");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DeviceDraft | undefined>();
+  const [registeredCaptures, setRegisteredCaptures] = useState<string[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,6 +64,7 @@ export function InsureItShell() {
   // Throws on failure: the form keeps the entered details and shows the message.
   async function saveDevice(values: DeviceFormValues) {
     const id = await store.addDevice(values);
+    if (draft?.captureId) setRegisteredCaptures(previous => [...previous, draft.captureId!]);
     setDraft(undefined);
     showNotice("Device registered");
     if (id) {
@@ -112,15 +114,7 @@ export function InsureItShell() {
       return <DeviceInventory devices={store.devices} onOpen={openDevice} onAdd={startNewFromInventory} />;
     }
     if (view === "capture") {
-      return (
-        <DeviceCapture
-          onCancel={() => navigate("dashboard")}
-          onContinue={(capture) => {
-            setDraft({ serial: capture.serial });
-            setView("form");
-          }}
-        />
-      );
+      return null;
     }
     if (view === "form") {
       return (
@@ -181,6 +175,9 @@ export function InsureItShell() {
             </div>
           ) : null}
           {renderView()}
+          <div hidden={view !== "capture"}>
+            <DeviceCapture registered={registeredCaptures} onCancel={() => navigate("dashboard")} onContinue={capture => { setDraft(capture); setView("form"); }} />
+          </div>
         </main>
       </div>
 

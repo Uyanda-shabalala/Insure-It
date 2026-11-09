@@ -28,10 +28,17 @@ public class BatchOCRService {
 
         for (String base64Image : base64Images) {
 
-            Future<SerialNumberResponse> future= executor.submit(()->
-                    ocrService.extract(base64Image));
-
-            futures.add(future);
+            try {
+                futures.add(executor.submit(() -> {
+                    try { return ocrService.extract(base64Image); }
+                    catch (RuntimeException failure) {
+                        return new SerialNumberResponse(null, SerialNumberResponse.Status.FAILED, "unavailable", true);
+                    }
+                }));
+            } catch (java.util.concurrent.RejectedExecutionException busy) {
+                futures.add(java.util.concurrent.CompletableFuture.completedFuture(
+                        new SerialNumberResponse(null, SerialNumberResponse.Status.FAILED, "unavailable", true)));
+            }
 
         };
 

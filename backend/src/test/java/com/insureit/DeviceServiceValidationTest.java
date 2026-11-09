@@ -50,20 +50,20 @@ class DeviceServiceValidationTest {
         DeviceResponse response = service.registerdevice(request(serial));
         assertNull(response.serialNumber());
         assertNotNull(response.id());
-        verify(devices, never()).existsBySerialNumber(any());
+        verify(devices, never()).existsNormalizedSerial(any());
         verify(devices).save(argThat(device -> device.getSerialNumber() == null));
     }
 
-    @Test void knownSerialRetainsExactValueAndExistingDuplicateRule() {
+    @Test void normalizedSerialRejectsExistingDuplicate() {
         String serial = " AbC123 ";
-        when(devices.existsBySerialNumber(serial)).thenReturn(true);
+        when(devices.existsNormalizedSerial("ABC123")).thenReturn(true);
         assertEquals(409, assertThrows(DeviceApiException.class, () -> service.registerdevice(request(serial))).status().value());
         verify(devices, never()).save(any());
     }
 
-    @Test void distinctKnownSerialIsSavedUnchanged() {
-        assertEquals(" AbC123 ", service.registerdevice(request(" AbC123 ")).serialNumber());
-        verify(devices).existsBySerialNumber(" AbC123 ");
+    @Test void distinctKnownSerialIsNormalized() {
+        assertEquals("ABC123", service.registerdevice(request(" AbC123 ")).serialNumber());
+        verify(devices).existsNormalizedSerial("ABC123");
     }
 
     @Test void unknownBrandAndTypeReturnNotFound() {

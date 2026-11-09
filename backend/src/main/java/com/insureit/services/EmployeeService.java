@@ -68,10 +68,12 @@ public class EmployeeService {
     }
 
     private void apply(Employee employee, EmployeeRequest request) {
-        employee.setEmployeeNumber(request.employeeNumber().trim());
-        employee.setFullName(request.fullName().trim());
+        employee.setEmployeeNumber(TextInput.text(request.employeeNumber(), "employeeNumber", true, 80));
+        employee.setFullName(TextInput.text(request.fullName(), "fullName", true, 120));
         employee.setEmail(optionalText(request.email()));
-        employee.setDepartment(optionalText(request.department()));
+        employee.setDepartment(TextInput.text(request.department(), "department", false, 120));
+        if (employee.getEmail() != null && (employee.getEmail().length() > 254 || !employee.getEmail().matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+")))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a valid email address");
     }
 
     private String optionalText(String value) {

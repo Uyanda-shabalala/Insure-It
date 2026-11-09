@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DeviceIcon } from "@/components/shared/device-icon";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { DeviceAssignment } from "@/components/devices/device-assignment";
+import { DeviceState } from "@/components/devices/device-state";
+import { DeviceInsurance } from "@/components/devices/device-insurance";
 
 interface DeviceDetailProps {
   device: Device;
@@ -94,8 +96,10 @@ export function DeviceDetail({ device, onBack, onChanged }: DeviceDetailProps) {
               ) : (
                 <div className="rounded-2xl border border-dashed bg-[var(--surface-muted)] p-5 text-sm text-[var(--muted)]">No insurance policy is linked to this device.</div>
               )}
+              <DeviceInsurance key={`${device.id}-${device.updatedAt}`} device={device} onChanged={onChanged} />
             </CardContent>
           </Card>
+          <DeviceState device={device} onChanged={onChanged} />
         </div>
 
         <DeviceAssignment key={device.id} device={device} onChanged={onChanged} />

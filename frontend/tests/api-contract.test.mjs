@@ -3,6 +3,16 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { z } from "zod";
+
+test("registration validation rejects blank and emoji text while retaining international names", () => {
+  const { deviceFormSchema } = loadModule("lib/domain/device.ts", { zod: { z } });
+  const valid = { name: "José's laptop", serialNumber: " abc-123 ", brandId: "brand", deviceTypeId: "type", model: "", location: "" };
+  assert.equal(deviceFormSchema.parse(valid).serialNumber, "ABC-123");
+  for (const name of [" ", "😀", "Laptop😀", "\u200b", "---"]) assert.equal(deviceFormSchema.safeParse({ ...valid, name }).success, false);
+  assert.equal(deviceFormSchema.safeParse({ ...valid, model: "😀" }).success, false);
+  assert.equal(deviceFormSchema.safeParse({ ...valid, serialNumber: "😀" }).success, false);
+});
 
 function loadModule(path, dependencies = {}, globals = {}) {
   const source = readFileSync(new URL("../" + path, import.meta.url), "utf8");

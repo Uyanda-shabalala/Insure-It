@@ -9,9 +9,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import java.util.Map;
 
-@RestControllerAdvice(assignableTypes = {DeviceController.class, com.insureit.controllers.DeviceAssignmentController.class})
+@RestControllerAdvice(assignableTypes = {DeviceController.class,
+        com.insureit.controllers.DeviceAssignmentController.class,
+        com.insureit.controllers.DeviceStateController.class,
+        com.insureit.controllers.InsuranceController.class,
+        com.insureit.controllers.EmployeeController.class})
 public class DeviceErrorHandler {
     public record ApiError(int status, String error, String message, Map<String, String> fields) {}
+
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ApiError> statusError(org.springframework.web.server.ResponseStatusException exception) {
+        return ResponseEntity.status(exception.getStatusCode()).headers(exception.getHeaders())
+                .body(new ApiError(exception.getStatusCode().value(), "Request failed", exception.getReason(), Map.of()));
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> conflict() {
+        return response(HttpStatus.CONFLICT, "A record already exists or a referenced record is no longer available.", Map.of());
+    }
 
     @ExceptionHandler(DeviceApiException.class)
     public ResponseEntity<ApiError> deviceError(DeviceApiException exception) {

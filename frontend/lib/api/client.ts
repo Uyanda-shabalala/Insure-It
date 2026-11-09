@@ -39,7 +39,7 @@ async function readError(response: Response): Promise<{ message: string | null; 
 }
 
 interface RequestOptions {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PATCH" | "PUT";
   body?: unknown;
   /** Multipart upload (e.g. an image). The browser sets the Content-Type, so none is added here. */
   formData?: FormData;

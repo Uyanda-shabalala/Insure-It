@@ -101,7 +101,8 @@ export function DeviceForm({ draft, onSave, onCancel }: DeviceFormProps) {
 
             <div>
               <Label htmlFor="serialNumber">Serial number</Label>
-              <Input id="serialNumber" placeholder="Serial or asset identifier" {...register("serialNumber")} />
+              <Input id="serialNumber" placeholder="Serial or asset identifier" {...register("serialNumber")} aria-invalid={Boolean(errors.serialNumber)} />
+              {fieldError("serialNumber")}
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
@@ -126,11 +127,13 @@ export function DeviceForm({ draft, onSave, onCancel }: DeviceFormProps) {
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
                 <Label htmlFor="model">Model</Label>
-                <Input id="model" placeholder="e.g. Latitude 5420" {...register("model")} />
+                <Input id="model" placeholder="e.g. Latitude 5420" {...register("model")} aria-invalid={Boolean(errors.model)} />
+                {fieldError("model")}
               </div>
               <div>
                 <Label htmlFor="location">Location</Label>
-                <Input id="location" placeholder="e.g. IT department" {...register("location")} />
+                <Input id="location" placeholder="e.g. IT department" {...register("location")} aria-invalid={Boolean(errors.location)} />
+                {fieldError("location")}
               </div>
             </div>
 

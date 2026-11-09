@@ -48,19 +48,27 @@ export interface Assignment {
 }
 
 /** Registration form: only these fields are collected. Insurance and assignment are optional later steps. */
+export const readableText = (required = false, max = 120) => z.string().trim().max(max).refine(
+  value => (!required && !value) || (/[\p{L}\p{N}]/u.test(value) && /^[\p{L}\p{M}\p{N}\p{P}\p{Zs}]+$/u.test(value)),
+  "Use letters or numbers with ordinary punctuation",
+);
+export const serialText = z.string().trim().max(120).toUpperCase().refine(
+  value => !value || /^[A-Z0-9][A-Z0-9._/ -]*$/.test(value), "Enter a valid serial number",
+);
 export const deviceFormSchema = z.object({
-  name: z.string().trim().min(2, "Enter a device name").max(120),
-  serialNumber: z.string().trim().max(120),
+  name: readableText(true).refine(value => value.length >= 2, "Enter a device name"),
+  serialNumber: serialText,
   brandId: z.string().min(1, "Select a brand"),
   deviceTypeId: z.string().min(1, "Select a device type"),
-  model: z.string().trim().max(120),
-  location: z.string().trim().max(120),
+  model: readableText(),
+  location: readableText(),
 });
 
 export type DeviceFormValues = z.infer<typeof deviceFormSchema>;
 
 /** Hand-off from the capture screen: the serial number read from the photo. */
 export interface DeviceDraft {
+  captureId?: string;
   serial: string;
   /** Sent by the capture screen for OCR only; it is not saved (the backend has no image upload endpoint). */
   photo?: string | null;
