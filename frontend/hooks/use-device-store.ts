@@ -1,53 +1,56 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createDevice, listDevices } from "@/lib/api/devices";
 import type { Device, DeviceFormValues } from "@/lib/domain/device";
-import { listDevices, registerDevice } from "@/lib/services/device-service";
-import { errorMessage } from "@/lib/services/api-client";
 
+/** Device data comes from the backend only. Nothing is cached in localStorage. */
 export function useDeviceStore() {
-  const [devices, setDevices] = useState<Device[] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [revision, setRevision] = useState(0);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [isReady, setIsReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    void listDevices(controller.signal)
-      .then((records) => {
-        if (!controller.signal.aborted) {
-          setDevices(records);
-          setError(null);
-        }
-      })
-      .catch((caught) => {
-        if (!controller.signal.aborted) setError(errorMessage(caught));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setIsLoading(false);
-      });
-    return () => controller.abort();
-  }, [revision]);
-
-  const refresh = useCallback(() => {
-    setIsLoading(true);
-    setError(null);
-    setRevision((value) => value + 1);
+  const refresh = useCallback(async () => {
+    try {
+      setDevices(await listDevices());
+      setLoadError(null);
+    } catch (caught) {
+      setLoadError(caught instanceof Error ? caught.message : "Devices could not be loaded.");
+    } finally {
+      setIsReady(true);
+    }
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    listDevices()
+      .then((list) => {
+        if (!active) return;
+        setDevices(list);
+        setLoadError(null);
+      })
+      .catch((caught) => {
+        if (active) setLoadError(caught instanceof Error ? caught.message : "Devices could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setIsReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  /** Throws on failure so the form can keep the user's input and show the message. */
   const addDevice = useCallback(
     async (values: DeviceFormValues) => {
-      const saved = await registerDevice(values);
-      // Only confirmed server data is ever placed in inventory state.
-      setDevices((current) => [
-        saved,
-        ...(current ?? []).filter((item) => item.id !== saved.id),
-      ]);
-      refresh();
-      return saved;
+      const saved = await createDevice(values);
+      await refresh();
+      return saved.id;
     },
     [refresh],
   );
 
-  return { devices, isLoading, error, refresh, addDevice };
+  const byId = useMemo(() => new Map(devices.map((device) => [device.id, device])), [devices]);
+
+  return { devices, byId, isReady, loadError, refresh, addDevice };
 }

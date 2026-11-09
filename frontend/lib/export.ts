@@ -1,9 +1,5 @@
-﻿import {
-  employeeDepartment,
-  employeeName,
-  type Device,
-} from "@/lib/domain/device";
-import { statusLabel } from "@/lib/format";
+import type { Device } from "@/lib/domain/device";
+import { brandModel, statusLabel } from "@/lib/format";
 
 function csvEscape(value: unknown) {
   let text = String(value ?? "");
@@ -12,38 +8,18 @@ function csvEscape(value: unknown) {
 }
 
 export function exportDevicesCsv(devices: Device[]) {
-  const headers = [
-    "Device ID",
-    "Name",
-    "Brand",
-    "Model",
-    "Serial Number",
-    "Device Type",
-    "Location",
-    "Lifecycle Status",
-    "Current Employee",
-    "Employee Number",
-    "Department",
-  ];
+  const headers = ["Name", "Brand / Model", "Serial", "Type", "Location", "Status"];
   const rows = devices.map((device) => [
-    device.id,
     device.name,
-    device.brand.name,
-    device.model,
+    brandModel(device),
     device.serialNumber,
-    device.deviceType.name,
+    device.deviceTypeName,
     device.location,
     statusLabel(device.status),
-    device.currentEmployee ? employeeName(device.currentEmployee) : "",
-    device.currentEmployee?.employeeNumber,
-    device.currentEmployee ? employeeDepartment(device.currentEmployee) : "",
   ]);
-  const csv = [headers, ...rows]
-    .map((row) => row.map(csvEscape).join(","))
-    .join("\n");
-  const url = URL.createObjectURL(
-    new Blob([csv], { type: "text/csv;charset=utf-8" }),
-  );
+  const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = `insure-it-devices-${new Date().toISOString().slice(0, 10)}.csv`;

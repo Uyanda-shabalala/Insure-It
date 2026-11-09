@@ -1,42 +1,31 @@
+import { ApiError, request } from "@/lib/api/client";
+
 export interface OcrResult {
-  serialNumber: string;
-  status: "FOUND" | "NOT_FOUND";
+  serial: string;
+  source: "remote";
 }
 
-export async function extractSerial(photo: File, signal?: AbortSignal): Promise<OcrResult> {
-  const endpoint = process.env.NEXT_PUBLIC_OCR_ENDPOINT?.trim() || "/api/ocr/serial-number";
+/**
+ * Sends the photo to POST /api/ocr/serial-number as multipart/form-data (field name "image")
+ * and returns the serial number the backend read from it. Nothing is saved by this call.
+ */
+export async function extractSerial(photo: Blob): Promise<OcrResult> {
   const formData = new FormData();
-  formData.append("image", photo);
+  formData.append("image", photo, "serial-label.jpg");
 
-  let response: Response;
   try {
-    response = await fetch(endpoint, {
+    const data = await request<{ serialNumber?: string | null }>("/api/ocr/serial-number", {
       method: "POST",
-      body: formData,
-      signal,
+      formData,
+      missingMeansUnavailable: false,
     });
+    const serial = data?.serialNumber?.trim();
+    if (!serial) throw new ApiError("No serial number could be detected.", 400, "NO_SERIAL_FOUND");
+    return { serial, source: "remote" };
   } catch (caught) {
-    if (signal?.aborted) throw caught;
-    throw new Error("Could not reach the OCR service. Try again or enter the serial number manually.");
-  }
-
-  if (!response.ok) {
-    throw new Error(`The OCR service could not process this image (HTTP ${response.status}). Try another photo or enter the serial number manually.`);
-  }
-
-  let data: unknown;
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error("The OCR service returned an invalid response. Enter the serial number manually or try again.");
-  }
-
-  if (typeof data === "object" && data !== null && "status" in data) {
-    if (data.status === "NOT_FOUND") return { serialNumber: "", status: "NOT_FOUND" };
-    if (data.status === "FOUND" && "serialNumber" in data && typeof data.serialNumber === "string" && data.serialNumber.trim()) {
-      return { serialNumber: data.serialNumber.trim(), status: "FOUND" };
+    if (caught instanceof ApiError && caught.status === 400 && caught.body.includes("NO_SERIAL_FOUND")) {
+      throw new Error("No serial number could be detected. Try another photo, or use Add device in Inventory to enter it manually.");
     }
+    throw caught;
   }
-
-  throw new Error("The OCR service returned an unexpected result. Enter the serial number manually or try again.");
 }

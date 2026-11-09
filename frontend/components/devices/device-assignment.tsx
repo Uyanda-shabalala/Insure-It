@@ -1,285 +1,216 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Loader2, RefreshCw, Search } from "lucide-react";
-import {
-  employeeDepartment,
-  employeeName,
-  type Device,
-  type Employee,
-} from "@/lib/domain/device";
-import { getDeviceStatus } from "@/lib/format";
-import { errorMessage } from "@/lib/services/api-client";
-import {
-  assignDevice,
-  assignmentAvailable,
-  listEmployees,
-  returnAvailable,
-  returnDevice,
-} from "@/lib/services/device-service";
+import { useEffect, useState } from "react";
+import { Loader2, RefreshCw, Undo2, UserCheck, UserPlus } from "lucide-react";
+import { assignDevice, getCurrentAssignment, listEmployees, returnDevice } from "@/lib/api/devices";
+import { EndpointUnavailableError } from "@/lib/api/client";
+import type { Assignment, Device, Employee } from "@/lib/domain/device";
+import { formatDate, normalizeStatus, statusLabel } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
 interface DeviceAssignmentProps {
   device: Device;
-  mode: "assign" | "return";
-  onClose: () => void;
-  onSuccess: () => void;
+  /** Called after the backend accepted an assign/return so the device status is re-read. */
+  onChanged: (message: string) => Promise<void>;
 }
 
-export function DeviceAssignment({
-  device,
-  mode,
-  onClose,
-  onSuccess,
-}: DeviceAssignmentProps) {
+type HolderState =
+  | { kind: "loading" }
+  | { kind: "unavailable" }
+  | { kind: "error"; message: string }
+  | { kind: "ready"; assignment: Assignment | null };
+
+const messageOf = (caught: unknown, fallback: string) => (caught instanceof Error ? caught.message : fallback);
+
+export function DeviceAssignment({ device, onChanged }: DeviceAssignmentProps) {
+  const [holder, setHolder] = useState<HolderState>({ kind: "loading" });
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(mode === "assign");
-  const [employeeError, setEmployeeError] = useState<string | null>(null);
-  const [revision, setRevision] = useState(0);
-  const [query, setQuery] = useState("");
+  const [employeesState, setEmployeesState] = useState<"idle" | "loading" | "error">("idle");
+  const [employeesError, setEmployeesError] = useState<string | null>(null);
   const [employeeId, setEmployeeId] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inFlight = useRef(false);
-  const isAssign = mode === "assign";
-  const endpointAvailable = isAssign ? assignmentAvailable : returnAvailable;
-  const correctStatus =
-    getDeviceStatus(device.status) === (isAssign ? "available" : "assigned");
+  const [actionError, setActionError] = useState<string | null>(null);
 
+  const [reloadToken, setReloadToken] = useState(0);
+
+  // Re-read the holder whenever the device, its status, or a manual retry changes.
   useEffect(() => {
-    if (mode !== "assign") return;
-    const controller = new AbortController();
-    void listEmployees(controller.signal)
-      .then((records) => {
-        if (!controller.signal.aborted) setEmployees(records);
+    let active = true;
+    getCurrentAssignment(device.id)
+      .then((assignment) => {
+        if (active) setHolder({ kind: "ready", assignment });
       })
       .catch((caught) => {
-        if (!controller.signal.aborted) setEmployeeError(errorMessage(caught));
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!active) return;
+        setHolder(
+          caught instanceof EndpointUnavailableError
+            ? { kind: "unavailable" }
+            : { kind: "error", message: messageOf(caught, "The current holder could not be loaded.") },
+        );
       });
-    return () => controller.abort();
-  }, [mode, revision]);
+    return () => {
+      active = false;
+    };
+  }, [device.id, device.status, reloadToken]);
 
-  const selected = employees.find((employee) => employee.id === employeeId);
-  const filtered = employees.filter((employee) =>
-    [
-      employeeName(employee),
-      employee.employeeNumber,
-      employeeDepartment(employee),
-    ]
-      .join(" ")
-      .toLowerCase()
-      .includes(query.trim().toLowerCase()),
-  );
-  const canConfirm =
-    endpointAvailable &&
-    correctStatus &&
-    !busy &&
-    (!isAssign || (!loading && !employeeError && Boolean(selected)));
+  function loadHolder() {
+    setHolder({ kind: "loading" });
+    setReloadToken((token) => token + 1);
+  }
 
-  async function confirm(event: React.FormEvent) {
-    event.preventDefault();
-    if (!canConfirm || inFlight.current) return;
-    inFlight.current = true;
-    setBusy(true);
-    setError(null);
+  async function openAssign() {
+    setActionError(null);
+    setEmployeeId("");
+    setAssignOpen(true);
+    setEmployeesState("loading");
     try {
-      if (isAssign && selected) await assignDevice(device.id, selected.id);
-      else await returnDevice(device.id);
-      onSuccess();
-      onClose();
+      setEmployees(await listEmployees());
+      setEmployeesState("idle");
     } catch (caught) {
-      setError(errorMessage(caught));
+      setEmployeesError(caught instanceof EndpointUnavailableError ? "The backend does not provide an employee list yet, so devices cannot be assigned." : messageOf(caught, "Employees could not be loaded."));
+      setEmployeesState("error");
+    }
+  }
+
+  async function confirmAssign() {
+    if (!employeeId) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await assignDevice(device.id, employeeId);
+      setAssignOpen(false);
+      await onChanged("Device assigned");
+      setReloadToken((token) => token + 1);
+    } catch (caught) {
+      setActionError(messageOf(caught, "The device could not be assigned."));
     } finally {
-      inFlight.current = false;
       setBusy(false);
     }
   }
 
+  async function confirmReturn() {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await returnDevice(device.id);
+      setReturnOpen(false);
+      await onChanged("Device returned");
+      setReloadToken((token) => token + 1);
+    } catch (caught) {
+      setActionError(messageOf(caught, "The device could not be returned."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const selected = employees.find((employee) => employee.id === employeeId);
+  const kind = normalizeStatus(device.status);
+
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !busy) onClose();
-      }}
-      title={isAssign ? "Assign Device" : "Return Device"}
-      description={
-        isAssign
-          ? "Select an employee from the backend records."
-          : "Confirm the return to update this device through the backend."
-      }
-    >
-      <form
-        className="space-y-4 p-5"
-        onSubmit={(event) => void confirm(event)}
-        aria-busy={busy}
-      >
+    <Card>
+      <CardHeader>
         <div>
-          <Label htmlFor="assignment-device">Selected device</Label>
-          <Input id="assignment-device" value={device.name} readOnly />
+          <CardTitle>Assignment</CardTitle>
+          <CardDescription>Who currently holds this device.</CardDescription>
         </div>
-        <div>
-          <Label htmlFor="assignment-serial">Serial number</Label>
-          <Input
-            id="assignment-serial"
-            value={device.serialNumber ?? ""}
-            placeholder="Not provided"
-            readOnly
-          />
-        </div>
-        {!endpointAvailable ? (
-          <p
-            role="status"
-            className="rounded-xl bg-[var(--warning-soft)] p-3 text-sm text-[var(--warning)]"
-          >
-            {isAssign
-              ? "Device assignment is not available on the backend yet. Confirmation is disabled."
-              : "Device returns are not available on the backend yet. Confirmation is disabled."}
-          </p>
+        <UserCheck className="text-[var(--primary)]" size={20} />
+      </CardHeader>
+      <CardContent>
+        {holder.kind === "loading" ? (
+          <div className="flex items-center gap-2 text-sm text-[var(--muted)]"><Loader2 className="animate-spin" size={16} /> Checking current holder…</div>
         ) : null}
-        {isAssign ? (
-          <>
-            <div>
-              <Label htmlFor="employee-search">Search employees</Label>
-              <div className="relative">
-                <Search
-                  size={15}
-                  className="pointer-events-none absolute left-3 top-3 text-[var(--muted)]"
-                />
-                <Input
-                  id="employee-search"
-                  className="pl-9"
-                  type="search"
-                  value={query}
-                  disabled={loading || busy}
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                    setEmployeeId("");
-                  }}
-                  placeholder="Name, employee number, or department"
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="employeeId">Employee *</Label>
-              <Select
-                id="employeeId"
-                value={employeeId}
-                onChange={(event) => setEmployeeId(event.target.value)}
-                disabled={loading || busy || Boolean(employeeError)}
-              >
-                <option value="">
-                  {loading ? "Loading employees..." : "Select employee"}
-                </option>
-                {filtered.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employeeName(employee)}
-                    {employee.employeeNumber
-                      ? ` (${employee.employeeNumber})`
-                      : ""}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            {loading ? (
-              <p role="status" className="text-sm text-[var(--muted)]">
-                Loading employee records...
-              </p>
-            ) : null}
-            {!loading && !employeeError && !filtered.length ? (
-              <p className="text-sm text-[var(--muted)]">
-                No matching employee records returned.
-              </p>
-            ) : null}
-            {employeeError ? (
-              <div
-                role="alert"
-                className="space-y-2 rounded-xl bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]"
-              >
-                <p>Employee list unavailable: {employeeError}</p>
-                <Button
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={() => {
-                    setLoading(true);
-                    setEmployeeError(null);
-                    setEmployeeId("");
-                    setRevision((value) => value + 1);
-                  }}
-                >
-                  <RefreshCw size={15} /> Retry employees
-                </Button>
-              </div>
-            ) : null}
-            <div>
-              <Label htmlFor="employeeNumber">Employee number</Label>
-              <Input
-                id="employeeNumber"
-                value={selected?.employeeNumber ?? ""}
-                placeholder="Not provided"
-                readOnly
-              />
-            </div>
-            <div>
-              <Label htmlFor="department">Department</Label>
-              <Input
-                id="department"
-                value={selected ? employeeDepartment(selected) : ""}
-                placeholder="Not provided"
-                readOnly
-              />
-            </div>
-          </>
-        ) : (
-          <div className="rounded-xl border bg-[var(--surface-muted)] p-4">
-            <p className="text-xs font-bold uppercase text-[var(--muted)]">
-              Current employee
-            </p>
-            <p className="mt-1 font-bold">
-              {device.currentEmployee
-                ? employeeName(device.currentEmployee)
-                : "Not returned by the backend"}
-            </p>
-            {device.currentEmployee?.employeeNumber ? (
-              <p className="mt-1 text-sm">
-                {device.currentEmployee.employeeNumber}
-              </p>
-            ) : null}
-            <p className="mt-3 text-sm text-[var(--muted)]">
-              Return {device.name}
-              {device.serialNumber ? ` (${device.serialNumber})` : ""} from this
-              holder?
-            </p>
+
+        {holder.kind === "unavailable" ? (
+          <div className="rounded-2xl border border-dashed bg-[var(--surface-muted)] p-5 text-sm text-[var(--muted)]">
+            Assignment is not available yet: the backend does not provide the assignment endpoints.
           </div>
-        )}
-        {error ? (
-          <p
-            role="alert"
-            className="rounded-xl bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]"
-          >
-            {error}
-          </p>
         ) : null}
-        <div className="flex justify-end gap-2 border-t pt-4">
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={!canConfirm}>
-            {busy ? <Loader2 size={16} className="animate-spin" /> : null}
-            {busy
-              ? "Confirming..."
-              : isAssign
-                ? "Confirm Assignment"
-                : "Confirm Return"}
-          </Button>
+
+        {holder.kind === "error" ? (
+          <div role="alert" className="flex flex-col gap-3 rounded-xl bg-[var(--danger-soft)] p-4 text-sm font-semibold text-[var(--danger)] sm:flex-row sm:items-center sm:justify-between">
+            <span>{holder.message}</span>
+            <Button variant="secondary" size="sm" onClick={loadHolder}><RefreshCw size={14} /> Try again</Button>
+          </div>
+        ) : null}
+
+        {holder.kind === "ready" && holder.assignment ? (
+          <div className="space-y-4">
+            <dl className="rounded-2xl border p-4">
+              <p className="text-base font-extrabold">{holder.assignment.employee.fullName}</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {[holder.assignment.employee.employeeNumber && `Employee ${holder.assignment.employee.employeeNumber}`, holder.assignment.employee.department].filter(Boolean).join(" · ") || "No employee details recorded"}
+              </p>
+              {holder.assignment.assignedAt ? <p className="mt-2 text-xs text-[var(--muted)]">Assigned {formatDate(holder.assignment.assignedAt)}</p> : null}
+            </dl>
+            <Button variant="secondary" onClick={() => { setActionError(null); setReturnOpen(true); }}><Undo2 size={16} /> Return device</Button>
+          </div>
+        ) : null}
+
+        {holder.kind === "ready" && !holder.assignment ? (
+          kind === "available" ? (
+            <div className="space-y-4">
+              <p className="text-sm text-[var(--muted)]">This device is available and not assigned to anyone.</p>
+              <Button onClick={() => void openAssign()}><UserPlus size={16} /> Assign device</Button>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed bg-[var(--surface-muted)] p-5 text-sm text-[var(--muted)]">
+              {kind === "assigned"
+                ? "This device is marked as assigned, but no current holder is recorded."
+                : `This device is ${statusLabel(device.status).toLowerCase()} and cannot be assigned.`}
+            </div>
+          )
+        ) : null}
+      </CardContent>
+
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen} title="Assign device" description={`Choose who will hold ${device.name}.`}>
+        <div className="space-y-4 p-5">
+          {employeesState === "loading" ? <div className="flex items-center gap-2 text-sm text-[var(--muted)]"><Loader2 className="animate-spin" size={16} /> Loading employees…</div> : null}
+          {employeesState === "error" ? <p role="alert" className="rounded-xl bg-[var(--danger-soft)] p-3 text-sm font-semibold text-[var(--danger)]">{employeesError}</p> : null}
+          {employeesState === "idle" ? (
+            <div>
+              <Label htmlFor="assign-employee">Employee *</Label>
+              <Select id="assign-employee" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} disabled={!employees.length}>
+                <option value="">{employees.length ? "Select an employee" : "No employees available"}</option>
+                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+              </Select>
+              {selected ? (
+                <p className="mt-2 text-xs text-[var(--muted)]">
+                  {[selected.employeeNumber && `Employee number ${selected.employeeNumber}`, selected.department && `Department ${selected.department}`].filter(Boolean).join(" · ") || "No employee number or department recorded"}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {actionError ? <p role="alert" className="rounded-xl bg-[var(--danger-soft)] p-3 text-sm font-semibold text-[var(--danger)]">{actionError}</p> : null}
+          <div className="flex justify-end gap-2 border-t pt-4">
+            <Button variant="secondary" onClick={() => setAssignOpen(false)}>Cancel</Button>
+            <Button onClick={() => void confirmAssign()} disabled={!employeeId || busy}>
+              {busy ? <Loader2 className="animate-spin" size={16} /> : <UserPlus size={16} />} Assign device
+            </Button>
+          </div>
         </div>
-      </form>
-    </Dialog>
+      </Dialog>
+
+      <Dialog open={returnOpen} onOpenChange={setReturnOpen} title="Return device" description="The device will become available again.">
+        <div className="space-y-4 p-5">
+          <p className="text-sm leading-6 text-[var(--muted)]">
+            Record that <strong className="text-[var(--foreground)]">{device.name}</strong> has been returned
+            {holder.kind === "ready" && holder.assignment ? <> by <strong className="text-[var(--foreground)]">{holder.assignment.employee.fullName}</strong></> : null}?
+          </p>
+          {actionError ? <p role="alert" className="rounded-xl bg-[var(--danger-soft)] p-3 text-sm font-semibold text-[var(--danger)]">{actionError}</p> : null}
+          <div className="flex justify-end gap-2 border-t pt-4">
+            <Button variant="secondary" onClick={() => setReturnOpen(false)}>Cancel</Button>
+            <Button onClick={() => void confirmReturn()} disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" size={16} /> : <Undo2 size={16} />} Return device
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </Card>
   );
 }
