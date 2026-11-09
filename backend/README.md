@@ -1,5 +1,11 @@
 # Groq serial-number REST API
 
+For Groq-to-EasyOCR fallback, the current branch's local startup instructions,
+response statuses, tests, and known database build limitation, see
+[OCR integration](../OCR-INTEGRATION.md). The instructions below describe the
+original Groq-only API; the fallback adds `source`, `requiresReview`, and the
+`REVIEW_REQUIRED` status.
+
 Requires Java 17+ and Maven. From this directory, set environment variables and run:
 
 ```powershell

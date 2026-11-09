@@ -71,6 +71,31 @@
             <artifactId>spring-boot-starter-restclient</artifactId>
         </dependency>
     </dependencies>
+    <!-- Lets the OCR service run and be verified while unrelated database model
+         classes are missing from Development. Default builds remain unchanged. -->
+    <profiles>
+        <profile>
+            <id>ocr-only</id>
+            <build><plugins><plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>**/InsureItApplication.java</include>
+                        <include>**/config/*.java</include>
+                        <include>**/controllers/OcrController.java</include>
+                        <include>**/services/GroqApiService.java</include>
+                        <include>**/services/OcrService.java</include>
+                        <include>**/services/FallbackOcrService.java</include>
+                        <include>**/services/BatchOCRService.java</include>
+                        <include>**/models/SerialNumberResponse.java</include>
+                        <include>**/models/BatchOCRResponse.java</include>
+                    </includes>
+                    <testIncludes><testInclude>**/OcrFallbackIntegrationTest.java</testInclude></testIncludes>
+                </configuration>
+            </plugin></plugins></build>
+        </profile>
+    </profiles>
     <build>
         <plugins>
             <plugin>
