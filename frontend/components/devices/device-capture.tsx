@@ -8,7 +8,6 @@ import {
   ImageIcon,
   Loader2,
   RefreshCw,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import type { DeviceDraft } from "@/lib/domain/device";
@@ -300,25 +299,6 @@ export function DeviceCapture({ onContinue, onCancel }: DeviceCaptureProps) {
             </CardContent>
           </Card>
 
-          <Card className="p-5">
-            <div className="flex items-start gap-3">
-              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
-                <ShieldCheck size={18} />
-              </div>
-
-              <div>
-                <p className="text-sm font-bold">
-                  Backend OCR integration
-                </p>
-
-                <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-                  The uploaded image is sent to the Insure-It backend for
-                  serial number extraction. Review the result before
-                  proceeding.
-                </p>
-              </div>
-            </div>
-          </Card>
         </div>
       </div>
     </div>

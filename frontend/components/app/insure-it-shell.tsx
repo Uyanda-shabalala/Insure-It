@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Camera, CloudOff, LayoutDashboard, List, Menu, Plus, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Camera, CloudOff, LayoutDashboard, List, Menu, Plus, RefreshCw, ShieldCheck, X } from "lucide-react";
 import type { DeviceDraft, DeviceFormValues } from "@/lib/domain/device";
 import { useDeviceStore } from "@/hooks/use-device-store";
 import { Button } from "@/components/ui/button";
@@ -158,11 +158,6 @@ export function InsureItShell() {
             );
           })}
         </nav>
-        <div className="mt-auto rounded-2xl bg-[var(--surface-muted)] p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-[var(--primary)]">Live data</p>
-          <p className="mt-2 text-sm font-bold">Backend device records</p>
-          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">Device records come from the Insure-It API. Connection errors appear in the workspace.</p>
-        </div>
       </aside>
 
       <div className="min-w-0">
@@ -173,12 +168,7 @@ export function InsureItShell() {
               <Brand compact />
             </div>
             <div className="hidden lg:block">
-              <p className="text-xs font-semibold text-[var(--muted)]">Insurance workspace</p>
               <p className="text-sm font-bold">Asset protection overview</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" aria-label="Notifications"><Bell size={18} /></Button>
-              <div className="grid size-9 place-items-center rounded-full bg-[var(--primary)] text-xs font-extrabold text-white">MB</div>
             </div>
           </div>
         </header>
