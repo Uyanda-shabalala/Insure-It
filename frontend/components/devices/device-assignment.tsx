@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Loader2, RefreshCw, Undo2, UserCheck, UserPlus } from "lucide-react";
-import { assignDevice, getCurrentAssignment, listEmployees, returnDevice } from "@/lib/api/devices";
+import { assignDevice, createEmployee, getCurrentAssignment, listEmployees, returnDevice, type EmployeeInput } from "@/lib/api/devices";
 import { EndpointUnavailableError } from "@/lib/api/client";
 import type { Assignment, Device, Employee } from "@/lib/domain/device";
 import { formatDate, normalizeStatus, statusLabel } from "@/lib/format";
@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { EmployeeCreateForm } from "@/components/devices/employee-create-form";
 
 interface DeviceAssignmentProps {
   device: Device;
@@ -29,6 +30,8 @@ const messageOf = (caught: unknown, fallback: string) => (caught instanceof Erro
 export function DeviceAssignment({ device, onChanged }: DeviceAssignmentProps) {
   const [holder, setHolder] = useState<HolderState>({ kind: "loading" });
   const [assignOpen, setAssignOpen] = useState(false);
+  const [addingEmployee, setAddingEmployee] = useState(false);
+  const [employeeNotice, setEmployeeNotice] = useState<string | null>(null);
   const [returnOpen, setReturnOpen] = useState(false);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [employeesState, setEmployeesState] = useState<"idle" | "loading" | "error">("idle");
@@ -66,6 +69,9 @@ export function DeviceAssignment({ device, onChanged }: DeviceAssignmentProps) {
 
   async function openAssign() {
     setActionError(null);
+    setAddingEmployee(false);
+    setEmployeeNotice(null);
+    setEmployeesError(null);
     setEmployeeId("");
     setAssignOpen(true);
     setEmployeesState("loading");
@@ -76,6 +82,17 @@ export function DeviceAssignment({ device, onChanged }: DeviceAssignmentProps) {
       setEmployeesError(caught instanceof EndpointUnavailableError ? "The backend does not provide an employee list yet, so devices cannot be assigned." : messageOf(caught, "Employees could not be loaded."));
       setEmployeesState("error");
     }
+  }
+
+  async function saveEmployee(values: EmployeeInput) {
+    const saved = await createEmployee(values);
+    setEmployees((current) => [...current.filter((employee) => employee.id !== saved.id), saved]
+      .sort((a, b) => a.fullName.localeCompare(b.fullName)));
+    setEmployeeId(saved.id);
+    setEmployeesState("idle");
+    setEmployeesError(null);
+    setEmployeeNotice(`${saved.fullName} added. Confirm the assignment below.`);
+    setAddingEmployee(false);
   }
 
   async function confirmAssign() {
@@ -168,24 +185,28 @@ export function DeviceAssignment({ device, onChanged }: DeviceAssignmentProps) {
         ) : null}
       </CardContent>
 
-      <Dialog open={assignOpen} onOpenChange={setAssignOpen} title="Assign device" description={`Choose who will hold ${device.name}.`}>
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen} title={addingEmployee ? "Add employee" : "Assign device"} description={addingEmployee ? "Create an employee to select for this device." : `Choose who will hold ${device.name}.`}>
+        {addingEmployee ? <EmployeeCreateForm onSave={saveEmployee} onCancel={() => setAddingEmployee(false)} /> : (
         <div className="space-y-4 p-5">
           {employeesState === "loading" ? <div className="flex items-center gap-2 text-sm text-[var(--muted)]"><Loader2 className="animate-spin" size={16} /> Loading employees…</div> : null}
           {employeesState === "error" ? <p role="alert" className="rounded-xl bg-[var(--danger-soft)] p-3 text-sm font-semibold text-[var(--danger)]">{employeesError}</p> : null}
           {employeesState === "idle" ? (
             <div>
+              {!employees.length ? <p className="mb-4 text-sm text-[var(--muted)]">No employees have been added yet. Add an employee to assign this device.</p> : null}
               <Label htmlFor="assign-employee">Employee *</Label>
               <Select id="assign-employee" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} disabled={!employees.length}>
                 <option value="">{employees.length ? "Select an employee" : "No employees available"}</option>
-                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}</option>)}
+                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}{employee.employeeNumber ? ` (${employee.employeeNumber})` : ""}</option>)}
               </Select>
               {selected ? (
                 <p className="mt-2 text-xs text-[var(--muted)]">
                   {[selected.employeeNumber && `Employee number ${selected.employeeNumber}`, selected.department && `Department ${selected.department}`].filter(Boolean).join(" · ") || "No employee number or department recorded"}
                 </p>
               ) : null}
+              <Button variant="secondary" size="sm" className="mt-3" onClick={() => { setActionError(null); setAddingEmployee(true); setEmployeeNotice(null); }}><UserPlus size={14} /> Add employee</Button>
             </div>
           ) : null}
+          {employeeNotice ? <p role="status" className="rounded-xl bg-[var(--success-soft)] p-3 text-sm font-semibold text-[var(--success)]">{employeeNotice}</p> : null}
           {actionError ? <p role="alert" className="rounded-xl bg-[var(--danger-soft)] p-3 text-sm font-semibold text-[var(--danger)]">{actionError}</p> : null}
           <div className="flex justify-end gap-2 border-t pt-4">
             <Button variant="secondary" onClick={() => setAssignOpen(false)}>Cancel</Button>
@@ -194,6 +215,7 @@ export function DeviceAssignment({ device, onChanged }: DeviceAssignmentProps) {
             </Button>
           </div>
         </div>
+        )}
       </Dialog>
 
       <Dialog open={returnOpen} onOpenChange={setReturnOpen} title="Return device" description="The device will become available again.">

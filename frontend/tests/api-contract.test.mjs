@@ -110,3 +110,19 @@ test("assignment and return use the implemented routes with encoded device IDs",
   assert.equal(calls[1].path, "/api/devices/device%2Fid/return");
   assert.equal(calls[1].method, "POST");
 });
+
+
+test("employee creation sends trimmed required fields and nullable optional fields", async () => {
+  let sent;
+  const api = loadModule("lib/api/devices.ts", { "@/lib/services/api-config": loadModule("lib/services/api-config.ts"), "@/lib/api/client": {
+    request: async (path, options) => { sent = { path, ...options }; return {
+      id: "employee-created", employeeNumber: "EMP001", fullName: "Jane Doe", email: null, department: "Finance",
+    }; },
+  } });
+  const employee = await api.createEmployee({ employeeNumber: " EMP001 ", fullName: " Jane Doe ", email: " ", department: " Finance " });
+  assert.equal(sent.path, "/api/employees");
+  assert.equal(sent.method, "POST");
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.body)), { employeeNumber: "EMP001", fullName: "Jane Doe", email: null, department: "Finance" });
+  assert.equal(employee.id, "employee-created");
+  assert.equal(employee.fullName, "Jane Doe");
+});

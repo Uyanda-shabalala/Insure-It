@@ -28,6 +28,11 @@ reference objects. Requests never use display names as identifiers.
 
 GET /api/brands and /api/device-types return id/name lists.
 GET /api/employees returns id, employeeNumber, fullName, email and department.
+POST /api/employees creates a record from employeeNumber and fullName (required),
+plus email and department (optional), and returns 201 with the created DTO and
+Location header. The assignment dialog offers Add employee, then selects the new
+record without assigning the device until the user confirms. Empty employee lists
+show a clear explanation; the selector becomes usable after a record is added.
 GET and PUT /api/employees/{id} preserve the local backend's employee API.
 
 ## Assignment and return
@@ -89,3 +94,5 @@ registration, reference dropdowns, assignment, return, persisted inventory searc
 and OCR confirmation at 1440x1000 and 390x844. The Browser plugin was unavailable.
 These results concern temporary H2 data and local provider stand-ins, not live
 Supabase data, Supabase login, actual Groq responses or EasyOCR model accuracy.
+
+Employee creation follow-up: 72 backend tests and eight frontend contract tests passed. Desktop and mobile browser checks covered an empty employee list, required-field validation, creation, automatic selection, explicit assignment and return. Test records used H2 only.

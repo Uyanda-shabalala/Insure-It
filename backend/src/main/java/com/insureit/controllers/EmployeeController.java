@@ -20,8 +20,13 @@ public class EmployeeController {
         this.employeeService = employeeService;
     }
 
-
-
+    @PostMapping
+    public ResponseEntity<EmployeeResponse> createEmployee(@RequestBody EmployeeRequest request) {
+        EmployeeResponse employee = employeeService.createEmployee(request);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{id}").buildAndExpand(employee.id()).toUri();
+        return ResponseEntity.created(location).body(employee);
+    }
     @GetMapping
     public ResponseEntity<List<EmployeeResponse>> getAllEmployees() {
         return ResponseEntity.ok(employeeService.getAllEmployees());

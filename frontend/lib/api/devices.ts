@@ -122,6 +122,29 @@ export async function listEmployees(): Promise<Employee[]> {
   return toList(data, toEmployee);
 }
 
+export interface EmployeeInput {
+  employeeNumber: string;
+  fullName: string;
+  email: string;
+  department: string;
+}
+
+export async function createEmployee(values: EmployeeInput): Promise<Employee> {
+  const data = await request<unknown>(apiPath(apiConfig.employeesPath), {
+    method: "POST",
+    missingMeansUnavailable: false,
+    body: {
+      employeeNumber: values.employeeNumber.trim(),
+      fullName: values.fullName.trim(),
+      email: values.email.trim() || null,
+      department: values.department.trim() || null,
+    },
+  });
+  if (!data || typeof data !== "object" || !(data as Raw).id)
+    throw new ApiError("The employee may have been saved, but the response was incomplete. Reopen the employee list before trying again.", 502);
+  return toEmployee(data);
+}
+
 /** The open assignment (returned_at is null), or null when the device is not held by anyone. */
 export async function getCurrentAssignment(deviceId: string): Promise<Assignment | null> {
   const data = await request<unknown>(`/api/devices/${encodeURIComponent(deviceId)}/assignment`);

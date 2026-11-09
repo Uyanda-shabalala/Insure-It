@@ -26,8 +26,10 @@ public class IntegrationPreview {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> { context.close(); provider.stop(0); }));
         Brand brand = new Brand(); brand.setName("Dell"); context.getBean(BrandRepo.class).save(brand);
         DeviceType type = new DeviceType(); type.setName("Laptop"); context.getBean(DeviceTypeRepo.class).save(type);
+        if (!Boolean.getBoolean("preview.emptyEmployees")) {
         Employee employee = new Employee(); employee.setEmployeeNumber("QA001"); employee.setFullName("QA Employee");
         employee.setDepartment("IT"); context.getBean(EmployeeRepo.class).save(employee);
+        }
         System.out.println("INTEGRATION_PREVIEW_READY: temporary H2 database and simulated OCR provider");
     }
 }
