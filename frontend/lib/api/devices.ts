@@ -1,8 +1,5 @@
-/** API adapter for the preserved feature/insureit-mvp backend.
- * DeviceController accepts Device entities, including nested brand/type IDs and status.
- * Lookup, OCR and assignment endpoints are optional and absent from this checkout.
- */
-import { EndpointUnavailableError, request } from "@/lib/api/client";
+/** API adapter for the integrated backend DTOs. */
+import { ApiError, EndpointUnavailableError, request } from "@/lib/api/client";
 import { apiConfig, mutationPath } from "@/lib/services/api-config";
 const apiPath = (path: string) => `/api/${path.replace(/^\/api\//, "").replace(/^\//, "")}`;
 import type {
@@ -41,12 +38,13 @@ function toPolicy(value: unknown): InsurancePolicy | null {
 
 function toDevice(value: unknown): Device {
   const raw = (value ?? {}) as Raw;
+  if (!raw.id || typeof raw.name !== "string") throw new ApiError("The backend returned an invalid device record.", 502);
   return {
     id: str(raw.id),
     name: str(raw.name),
     serialNumber: str(pick(raw, "serialNumber", "serial_number")),
-    brandName: str(pick(raw, "brandName", "brand_name") ?? toNamedRef(raw.brand)?.name),
-    deviceTypeName: str(pick(raw, "deviceTypeName", "device_type_name") ?? toNamedRef(raw.deviceType)?.name),
+    brandName: str(pick(raw, "brandName", "brand_name") ?? (typeof raw.brand === "string" ? raw.brand : toNamedRef(raw.brand)?.name)),
+    deviceTypeName: str(pick(raw, "deviceTypeName", "device_type_name") ?? (typeof raw.deviceType === "string" ? raw.deviceType : toNamedRef(raw.deviceType)?.name)),
     model: str(raw.model),
     location: str(raw.location),
     status: str(raw.status),
@@ -79,7 +77,8 @@ export async function listDevices(): Promise<Device[]> {
   const data = await request<unknown>("/api/devices", { missingMeansUnavailable: false });
   // Accept a plain array or a paged response ({ content: [...] }).
   const items = Array.isArray(data) ? data : (data as { content?: unknown } | null)?.content;
-  return toList(items, toDevice);
+  if (!Array.isArray(items)) throw new ApiError("The backend returned an invalid device list.", 502);
+  return items.map(toDevice);
 }
 
 export async function getDevice(id: string): Promise<Device> {
@@ -87,7 +86,7 @@ export async function getDevice(id: string): Promise<Device> {
   return toDevice(data);
 }
 
-/** DeviceController binds a Device entity; DeviceService resolves both nested IDs. */
+/** The backend resolves reference IDs and sets the initial status. */
 export async function createDevice(values: DeviceFormValues): Promise<Device> {
   const data = await request<unknown>("/api/devices", {
     method: "POST",
@@ -96,9 +95,8 @@ export async function createDevice(values: DeviceFormValues): Promise<Device> {
       name: values.name,
       serialNumber: values.serialNumber || null,
       model: values.model || null,
-      brand: { id: values.brandId },
-      deviceType: { id: values.deviceTypeId },
-      status: "available",
+      brandId: values.brandId,
+      deviceTypeId: values.deviceTypeId,
       location: values.location || null,
     },
   });

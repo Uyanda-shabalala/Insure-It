@@ -44,6 +44,7 @@ export function useDeviceStore() {
   const addDevice = useCallback(
     async (values: DeviceFormValues) => {
       const saved = await createDevice(values);
+      setDevices((current) => [...current.filter((device) => device.id !== saved.id), saved]);
       await refresh();
       return saved.id;
     },

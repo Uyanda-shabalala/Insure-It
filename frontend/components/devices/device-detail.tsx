@@ -98,7 +98,7 @@ export function DeviceDetail({ device, onBack, onChanged }: DeviceDetailProps) {
           </Card>
         </div>
 
-        <DeviceAssignment device={device} onChanged={onChanged} />
+        <DeviceAssignment key={device.id} device={device} onChanged={onChanged} />
       </section>
     </div>
   );

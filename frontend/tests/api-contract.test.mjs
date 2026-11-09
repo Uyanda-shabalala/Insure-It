@@ -23,7 +23,7 @@ function loadModule(path, dependencies = {}, globals = {}) {
 const device = { id: "device-1", name: "Finance laptop", status: "available",
   brand: { id: "brand-1", name: "Dell" }, deviceType: { id: "type-1", name: "Laptop" } };
 
-test("registration matches preserved Device entity, with nested IDs and status", async () => {
+test("registration matches CreateDeviceRequest with flat reference IDs", async () => {
   let sent;
   const api = loadModule("lib/api/devices.ts", { "@/lib/api/client": {
     request: async (path, options) => { sent = { path, ...options }; return device; },
@@ -33,20 +33,22 @@ test("registration matches preserved Device entity, with nested IDs and status",
   assert.equal(sent.path, "/api/devices");
   assert.equal(sent.method, "POST");
   assert.deepEqual(JSON.parse(JSON.stringify(sent.body)), { name: device.name,
-    serialNumber: null, model: null, brand: { id: "brand-1" },
-    deviceType: { id: "type-1" }, status: "available", location: null });
+    serialNumber: null, model: null, brandId: "brand-1",
+    deviceTypeId: "type-1", location: null });
   assert.equal(result.brandName, "Dell");
   assert.equal(result.deviceTypeName, "Laptop");
 });
 
 test("inventory supports entity responses and flat read DTOs", async () => {
   const api = loadModule("lib/api/devices.ts", { "@/lib/api/client": {
-    request: async () => [device, { ...device, brandName: "HP", deviceTypeName: "Desktop" }],
+    request: async () => [device, { ...device, brandName: "HP", deviceTypeName: "Desktop" }, { ...device, brand: "Lenovo", deviceType: "Laptop" }],
   } });
   const list = await api.listDevices();
   assert.equal(list[0].brandName, "Dell");
   assert.equal(list[1].brandName, "HP");
   assert.equal(list[1].deviceTypeName, "Desktop");
+  assert.equal(list[2].brandName, "Lenovo");
+  assert.equal(list[2].deviceTypeName, "Laptop");
 });
 
 test("same-origin requests retain sessions; absent optional routes are unavailable", async () => {
@@ -71,4 +73,40 @@ test("OCR uploads multipart image and reads serialNumber", async () => {
   assert.equal(sent.path, "/api/ocr/serial-number");
   assert.equal(sent.formData.get("image").name, "serial-label.jpg");
   assert.equal(result.serial, "SN123");
+});
+
+
+test("OCR review status and fallback source are preserved", async () => {
+  const ocr = loadModule("lib/services/ocr-service.ts", { "@/lib/api/client": {
+    request: async () => ({ serialNumber: " CHECK123 ", status: "REVIEW_REQUIRED", source: "fallback", requiresReview: true }),
+    ApiError: Error,
+  } });
+  const result = await ocr.extractSerial(new Blob(["test"]));
+  assert.equal(result.serial, "CHECK123");
+  assert.equal(result.status, "REVIEW_REQUIRED");
+  assert.equal(result.source, "fallback");
+  assert.equal(result.requiresReview, true);
+});
+
+test("malformed inventory does not masquerade as an empty list", async () => {
+  const client = loadModule("lib/api/client.ts");
+  const api = loadModule("lib/api/devices.ts", { "@/lib/api/client": {
+    ...client, request: async () => ({ unexpected: true }),
+  } });
+  await assert.rejects(api.listDevices(), client.ApiError);
+});
+
+test("assignment and return use the implemented routes with encoded device IDs", async () => {
+  const calls = [];
+  const config = loadModule("lib/services/api-config.ts");
+  const api = loadModule("lib/api/devices.ts", {
+    "@/lib/services/api-config": config,
+    "@/lib/api/client": { request: async (path, options) => { calls.push({ path, ...options }); } },
+  });
+  await api.assignDevice("device/id", "employee-1");
+  await api.returnDevice("device/id");
+  assert.equal(calls[0].path, "/api/devices/device%2Fid/assign");
+  assert.equal(calls[0].body.employeeId, "employee-1");
+  assert.equal(calls[1].path, "/api/devices/device%2Fid/return");
+  assert.equal(calls[1].method, "POST");
 });

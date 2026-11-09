@@ -74,5 +74,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   if (response.status === 204) return null;
   const text = await response.text();
-  return text ? (JSON.parse(text) as T) : null;
+  if (!text) return null;
+  try { return JSON.parse(text) as T; }
+  catch { throw new ApiError("The backend returned an invalid JSON response.", response.status); }
 }

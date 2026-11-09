@@ -109,7 +109,7 @@ public class GroqApiService {
         }
     }
 //image validation
-    private String validateImage(String image) {
+    String validateImage(String image) {
         if (image == null || image.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "base64Image is required");
         }

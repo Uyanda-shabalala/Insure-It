@@ -30,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {"groq.api.key=test-key", "groq.model=test-vision-model",
         "spring.security.user.name=test-user", "spring.security.user.password=test-password"})
+@org.springframework.test.context.ActiveProfiles("test")
 @AutoConfigureMockMvc
 class GroqApiIntegrationTest {
     private static final AtomicReference<String> BODY = new AtomicReference<>();
@@ -86,7 +87,7 @@ class GroqApiIntegrationTest {
 
     @Test
     void extractsSerialAndSendsExpectedGroqPayload() throws Exception {
-        mvc.perform(post(ENDPOINT).with(httpBasic("test-user", "test-password"))
+        mvc.perform(post(ENDPOINT).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()).with(httpBasic("test-user", "test-password"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"base64Image\":\"aW1hZ2U=\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.serialNumber").value("ABC123"))
                 .andExpect(jsonPath("$.status").value("FOUND"));
@@ -101,7 +102,7 @@ class GroqApiIntegrationTest {
     @Test
     void returnsNotFoundAndPreservesDataUrl() throws Exception {
         answer("{\"serialNumber\":null,\"status\":\"NOT_FOUND\"}");
-        mvc.perform(post(ENDPOINT).with(httpBasic("test-user", "test-password"))
+        mvc.perform(post(ENDPOINT).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()).with(httpBasic("test-user", "test-password"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"base64Image\":\"data:image/png;base64,aW1hZ2U=\"}"))
                 .andExpect(status().isOk()).andExpect(content().json("{\"serialNumber\":null,\"status\":\"NOT_FOUND\"}"));
@@ -112,7 +113,7 @@ class GroqApiIntegrationTest {
     @ValueSource(strings = {"{}", "null", "{", "{\"base64Image\":\"\"}",
             "{\"base64Image\":\"bad base64!\"}", "{\"base64Image\":\"data:text/plain;base64,YQ==\"}"})
     void rejectsInvalidInput(String request) throws Exception {
-        mvc.perform(post(ENDPOINT).with(httpBasic("test-user", "test-password"))
+        mvc.perform(post(ENDPOINT).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()).with(httpBasic("test-user", "test-password"))
                         .contentType(MediaType.APPLICATION_JSON).content(request))
                 .andExpect(status().isBadRequest());
         assertThat(REQUEST.get()).isNull();
@@ -120,7 +121,7 @@ class GroqApiIntegrationTest {
 
     @Test
     void rejectsOversizedImage() throws Exception {
-        mvc.perform(post(ENDPOINT).with(httpBasic("test-user", "test-password"))
+        mvc.perform(post(ENDPOINT).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()).with(httpBasic("test-user", "test-password"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(Map.of("base64Image", "A".repeat(4_000_004)))))
                 .andExpect(status().isPayloadTooLarge());
@@ -132,7 +133,7 @@ class GroqApiIntegrationTest {
             "{\"serialNumber\":\"ABC\",\"status\":\"NOT_FOUND\"}"})
     void rejectsMalformedModelAnswers(String answer) throws Exception {
         answer(answer);
-        mvc.perform(post(ENDPOINT).with(httpBasic("test-user", "test-password"))
+        mvc.perform(post(ENDPOINT).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()).with(httpBasic("test-user", "test-password"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"base64Image\":\"YQ==\"}"))
                 .andExpect(status().isBadGateway());
     }
@@ -142,7 +143,7 @@ class GroqApiIntegrationTest {
     void mapsUpstreamErrorsWithoutExposingDetails(int upstreamStatus) throws Exception {
         STATUS.set(upstreamStatus);
         BODY.set("{\"error\":\"sensitive upstream details\"}");
-        mvc.perform(post(ENDPOINT).with(httpBasic("test-user", "test-password"))
+        mvc.perform(post(ENDPOINT).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()).with(httpBasic("test-user", "test-password"))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"base64Image\":\"YQ==\"}"))
                 .andExpect(status().is(upstreamStatus == 429 ? 429 : 502))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
@@ -151,7 +152,7 @@ class GroqApiIntegrationTest {
 
     @Test
     void requiresAuthentication() throws Exception {
-        mvc.perform(post(ENDPOINT).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post(ENDPOINT).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"base64Image\":\"YQ==\"}"))
                 .andExpect(status().isUnauthorized());
         assertThat(REQUEST.get()).isNull();

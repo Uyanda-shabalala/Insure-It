@@ -8,8 +8,5 @@ import java.util.List;
             List<SerialNumberResponse> results
     ) {
 
-
-
-
     }
 

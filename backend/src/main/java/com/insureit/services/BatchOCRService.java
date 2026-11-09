@@ -8,30 +8,28 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 @Service
 public class BatchOCRService {
 
-    private final GroqApiService groqApiService;
+    private final OcrService ocrService;
     private final ExecutorService executor;
 
-    public   BatchOCRService(GroqApiService groqApiService, ExecutorService executor) {
-        this.groqApiService = groqApiService;
+    public   BatchOCRService(OcrService ocrService, ExecutorService executor) {
+        this.ocrService = ocrService;
         this.executor = executor;
     }
 
     public BatchOCRResponse processBatch(List<String> base64Images)throws ExecutionException, InterruptedException {
 
-        Executors.newFixedThreadPool(5);
         List<SerialNumberResponse> serialNumberResponses = new ArrayList<>();
         List<Future<SerialNumberResponse>> futures = new ArrayList<>();
 
         for (String base64Image : base64Images) {
 
             Future<SerialNumberResponse> future= executor.submit(()->
-                    groqApiService.sendToGroq(base64Image));
+                    ocrService.extract(base64Image));
 
             futures.add(future);
 

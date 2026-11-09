@@ -16,8 +16,7 @@ public class DatabaseConnectionTest {
         return args -> {
             try (Connection connection = dataSource.getConnection()) {
                 System.out.println(
-                        "Connected to Supabase: " +
-                                connection.getMetaData().getURL()
+                        "Database connection established"
                 );
             }
         };

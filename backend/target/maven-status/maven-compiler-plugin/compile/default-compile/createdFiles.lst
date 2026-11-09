@@ -1,6 +1,0 @@
-com\insureit\models\package-info.class
-com\insureit\InsureItApplication.class
-com\insureit\services\GroqApiService.class
-com\insureit\models\SerialNumberResponse$Status.class
-com\insureit\config\SecurityConfig.class
-com\insureit\models\SerialNumberResponse.class

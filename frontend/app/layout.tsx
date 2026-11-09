@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Insure-It | IT Asset Management",
   description: "Register IT devices, track inventory and employee assignments, and review optional linked policies.",
   applicationName: "Insure-It",
+  icons: { icon: "/icon.svg" },
   manifest: "/manifest.webmanifest",
 };
 

@@ -38,11 +38,13 @@ export function DeviceCapture({ onContinue, onCancel }: DeviceCaptureProps) {
   const [serial, setSerial] = useState("");
   const [result, setResult] = useState<OcrResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function processFile(file?: File) {
     if (!file) return;
 
+    setConfirmed(false);
     setError(null);
     setResult(null);
     setSerial("");
@@ -236,7 +238,7 @@ export function DeviceCapture({ onContinue, onCancel }: DeviceCaptureProps) {
                 <Input
                   id="captured-serial"
                   value={serial}
-                  onChange={(event) => setSerial(event.target.value)}
+                  onChange={(event) => { setSerial(event.target.value); setConfirmed(false); }}
                   placeholder="Enter or confirm the serial number"
                   disabled={!photo || isProcessing}
                 />
@@ -246,11 +248,11 @@ export function DeviceCapture({ onContinue, onCancel }: DeviceCaptureProps) {
                 <div className="rounded-2xl border bg-[var(--success-soft)] p-4 text-sm text-[var(--success)]">
                   <div className="flex items-center gap-2 font-bold">
                     <CheckCircle2 size={17} />
-                    Extraction complete
+                    {result.status === "REVIEW_REQUIRED" ? "Check this result carefully" : "Extraction complete"}
                   </div>
 
                   <p className="mt-1 text-xs opacity-90">
-                    Serial number extracted by the backend OCR service.
+                    {result.source === "fallback" ? "Serial number read by backup OCR." : "Serial number read by OCR."}{" "}
                     Please verify it before continuing.
                   </p>
                 </div>
@@ -269,10 +271,15 @@ export function DeviceCapture({ onContinue, onCancel }: DeviceCaptureProps) {
                 </p>
               ) : null}
 
+              <label className="flex items-start gap-2 text-sm text-[var(--muted)]">
+                <input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} disabled={!serial.trim() || isProcessing} />
+                I checked this serial number against the device label.
+              </label>
+
               <Button
                 size="lg"
                 className="w-full"
-                disabled={!photo || isProcessing || !serial.trim()}
+                disabled={!photo || isProcessing || !serial.trim() || !confirmed}
                 onClick={() =>
                   onContinue({
                     serial: serial.trim(),

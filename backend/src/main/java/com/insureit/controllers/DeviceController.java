@@ -1,7 +1,10 @@
 package com.insureit.controllers;
 
 
+import com.insureit.models.Brand;
+import com.insureit.models.CreateDeviceRequest;
 import com.insureit.models.Device;
+import com.insureit.models.DeviceResponse;
 import com.insureit.repositories.DeviceRepo;
 import com.insureit.services.DeviceService;
 import org.springframework.http.ResponseEntity;
@@ -23,32 +26,36 @@ public class DeviceController {
     }
 
     @PostMapping
-    public ResponseEntity<Device> registerDevice(@RequestBody Device device) {
+    public ResponseEntity<DeviceResponse> registerDevice(@RequestBody CreateDeviceRequest request) {
 
-        Device savedDevice= deviceService.registerdevice(device);
+
+        DeviceResponse response= deviceService.registerdevice(request);
 
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")
-                .buildAndExpand(savedDevice.getId())
+                .buildAndExpand(response.id())
                 .toUri();
 
-        return ResponseEntity.created(location).body(savedDevice);
+    return ResponseEntity.created(location).body(response);
     }
 
     @GetMapping
-    public ResponseEntity<List<Device>> getAllDevices() {
-        List<Device> devices= deviceService.listAllDevices();
+    public ResponseEntity<List<DeviceResponse>> getAllDevices() {
+        List<DeviceResponse> devices= deviceService.listAllDevices();
+
         return ResponseEntity.ok(devices);
     }
 
 
     @GetMapping("/{id}")
-    public ResponseEntity<Device> getDevice(@PathVariable("id") UUID id) {
-        Device device= deviceService.findById(id);
+    public ResponseEntity<DeviceResponse> getDevice(@PathVariable("id") UUID id) {
+        DeviceResponse device= deviceService.findById(id);
         if (device == null) {
             return ResponseEntity.notFound().build();
         }
 
         return ResponseEntity.ok(device);
     }
+
+
 }
