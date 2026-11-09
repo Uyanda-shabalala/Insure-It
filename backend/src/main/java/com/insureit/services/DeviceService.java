@@ -1,12 +1,11 @@
 package com.insureit.services;
 
 import com.insureit.dto.DeviceRequest;
+import com.insureit.exceptions.ResourceNotFoundException;
 import com.insureit.models.Device;
 import com.insureit.repositories.DeviceRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,11 +23,10 @@ public class DeviceService {
     public Device findOne(UUID id, UUID userId) {
         // Scoped to the user, so someone else's device looks like it doesn't exist
         return repo.findByIdAndUserId(id, userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Device not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
     }
 
     public Device create(DeviceRequest req, UUID userId) {
-        validate(req);
         Device d = new Device();
         d.setUserId(userId);
         apply(d, req);
@@ -36,7 +34,6 @@ public class DeviceService {
     }
 
     public Device update(UUID id, DeviceRequest req, UUID userId) {
-        validate(req);
         Device d = findOne(id, userId);
         apply(d, req);
         return repo.save(d);
@@ -44,12 +41,6 @@ public class DeviceService {
 
     public void delete(UUID id, UUID userId) {
         repo.delete(findOne(id, userId));
-    }
-
-    private void validate(DeviceRequest req) {
-        if (req == null || req.name() == null || req.name().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Device name is required");
-        }
     }
 
     private void apply(Device d, DeviceRequest r) {
