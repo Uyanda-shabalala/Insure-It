@@ -1,35 +1,21 @@
 import type { Device } from "@/lib/domain/device";
-import { getDeviceStatus } from "@/lib/format";
+import { brandModel, statusLabel } from "@/lib/format";
 
 function csvEscape(value: unknown) {
-  const text = String(value ?? "");
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  let text = String(value ?? "");
+  if (/^[=+@\-\t\r]/.test(text)) text = `'${text}`;
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 export function exportDevicesCsv(devices: Device[]) {
-  const headers = [
-    "Name",
-    "Type",
-    "Serial",
-    "Insurer",
-    "Policy Number",
-    "Monthly Premium (R)",
-    "Sum Insured (R)",
-    "Expiry Date",
-    "Status",
-    "Claims",
-  ];
+  const headers = ["Name", "Brand / Model", "Serial", "Type", "Location", "Status"];
   const rows = devices.map((device) => [
     device.name,
-    device.type,
-    device.serial,
-    device.insurer,
-    device.policyNumber,
-    device.premium ?? "",
-    device.sumInsured ?? "",
-    device.expiryDate,
-    getDeviceStatus(device.expiryDate),
-    device.claims.length,
+    brandModel(device),
+    device.serialNumber,
+    device.deviceTypeName,
+    device.location,
+    statusLabel(device.status),
   ]);
   const csv = [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });

@@ -16,3 +16,8 @@ export async function imageFileToDataUrl(file: File) {
   source.close();
   return canvas.toDataURL("image/jpeg", 0.82);
 }
+
+/** Turns the resized preview (data URL) into the binary file that is uploaded to the OCR endpoint. */
+export async function dataUrlToBlob(dataUrl: string) {
+  return (await fetch(dataUrl)).blob();
+}

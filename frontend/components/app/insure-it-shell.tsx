@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Camera, LayoutDashboard, List, Menu, Plus, ShieldCheck, X } from "lucide-react";
-import type { DeviceDraft, DeviceFormValues, ClaimFormValues } from "@/lib/domain/device";
+import { Camera, CloudOff, LayoutDashboard, List, Menu, Plus, RefreshCw, ShieldCheck, X } from "lucide-react";
+import type { DeviceDraft, DeviceFormValues } from "@/lib/domain/device";
 import { useDeviceStore } from "@/hooks/use-device-store";
 import { Button } from "@/components/ui/button";
 import { DashboardView } from "@/components/dashboard/dashboard-view";
@@ -10,6 +10,7 @@ import { DeviceCapture } from "@/components/devices/device-capture";
 import { DeviceDetail } from "@/components/devices/device-detail";
 import { DeviceForm } from "@/components/devices/device-form";
 import { DeviceInventory } from "@/components/devices/device-inventory";
+import { EmptyState } from "@/components/shared/empty-state";
 import { cn } from "@/lib/utils";
 
 type View = "dashboard" | "inventory" | "capture" | "form" | "detail";
@@ -25,7 +26,7 @@ export function InsureItShell() {
   const [view, setView] = useState<View>("dashboard");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DeviceDraft | undefined>();
-  const [editing, setEditing] = useState(false);
+  const [registeredCaptures, setRegisteredCaptures] = useState<string[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -45,61 +46,38 @@ export function InsureItShell() {
   function navigate(next: View) {
     setView(next);
     setDraft(undefined);
-    setEditing(false);
     setMobileMenuOpen(false);
     if (next !== "detail" && next !== "form") setSelectedId(null);
   }
 
   function openDevice(id: string) {
     setSelectedId(id);
-    setEditing(false);
     setView("detail");
-  }
-
-  function startEdit() {
-    setEditing(true);
-    setView("form");
   }
 
   function startNewFromInventory() {
     setSelectedId(null);
     setDraft(undefined);
-    setEditing(false);
     setView("form");
   }
 
-  function saveDevice(values: DeviceFormValues) {
-    if (editing && selectedId) {
-      store.updateDevice(selectedId, values);
-      showNotice("Device record updated");
-      setEditing(false);
-      setView("detail");
-      return;
-    }
-    const id = store.addDevice(values);
-    setSelectedId(id);
+  // Throws on failure: the form keeps the entered details and shows the message.
+  async function saveDevice(values: DeviceFormValues) {
+    const id = await store.addDevice(values);
+    if (draft?.captureId) setRegisteredCaptures(previous => [...previous, draft.captureId!]);
     setDraft(undefined);
-    showNotice("Device added to inventory");
-    setView("detail");
+    showNotice("Device registered");
+    if (id) {
+      setSelectedId(id);
+      setView("detail");
+    } else {
+      setView("inventory"); // The backend did not return the new id: show the refreshed list instead.
+    }
   }
 
-  function addClaim(values: ClaimFormValues) {
-    if (!selectedId) return;
-    store.addClaim(selectedId, values);
-    showNotice("Claim added");
-  }
-
-  function removeSelectedDevice() {
-    if (!selectedId) return;
-    store.removeDevice(selectedId);
-    setSelectedId(null);
-    setView("inventory");
-    showNotice("Device removed");
-  }
-
-  async function resetDemo() {
-    await store.resetDemoData();
-    showNotice("Demo records restored");
+  async function onDeviceChanged(message: string) {
+    await store.refresh();
+    showNotice(message);
   }
 
   if (!store.isReady) {
@@ -114,51 +92,43 @@ export function InsureItShell() {
     );
   }
 
+  // First load failed and there is nothing to show: an error state is clearer than a dashboard of zeros.
+  const loadFailed = Boolean(store.loadError) && !store.devices.length;
+
   const renderView = () => {
+    if (loadFailed && (view === "dashboard" || view === "inventory")) {
+      return (
+        <EmptyState
+          icon={CloudOff}
+          title="Devices could not be loaded"
+          description={store.loadError ?? "The backend did not respond."}
+          actionLabel="Try again"
+          onAction={() => void store.refresh()}
+        />
+      );
+    }
     if (view === "dashboard") {
       return <DashboardView devices={store.devices} onAdd={() => navigate("capture")} onOpenDevice={openDevice} onOpenInventory={() => navigate("inventory")} />;
     }
     if (view === "inventory") {
-      return <DeviceInventory devices={store.devices} onOpen={openDevice} onAdd={startNewFromInventory} onReset={() => void resetDemo()} />;
+      return <DeviceInventory devices={store.devices} onOpen={openDevice} onAdd={startNewFromInventory} />;
     }
     if (view === "capture") {
-      return (
-        <DeviceCapture
-          onCancel={() => navigate("dashboard")}
-          onContinue={(nextDraft) => {
-            setDraft(nextDraft);
-            setEditing(false);
-            setView("form");
-          }}
-        />
-      );
+      return null;
     }
     if (view === "form") {
       return (
         <DeviceForm
-          device={editing ? selectedDevice : undefined}
-          draft={!editing ? draft : undefined}
+          draft={draft}
           onSave={saveDevice}
-          onCancel={() => setView(editing && selectedDevice ? "detail" : draft ? "capture" : "inventory")}
+          onCancel={() => setView(draft ? "capture" : "inventory")}
         />
       );
     }
     if (view === "detail" && selectedDevice) {
-      return (
-        <DeviceDetail
-          device={selectedDevice}
-          onBack={() => navigate("inventory")}
-          onEdit={startEdit}
-          onRemove={removeSelectedDevice}
-          onAddClaim={addClaim}
-          onRemoveClaim={(claimId) => {
-            store.removeClaim(selectedDevice.id, claimId);
-            showNotice("Claim removed");
-          }}
-        />
-      );
+      return <DeviceDetail device={selectedDevice} onBack={() => navigate("inventory")} onChanged={onDeviceChanged} />;
     }
-    return <DeviceInventory devices={store.devices} onOpen={openDevice} onAdd={startNewFromInventory} onReset={() => void resetDemo()} />;
+    return <DeviceInventory devices={store.devices} onOpen={openDevice} onAdd={startNewFromInventory} />;
   };
 
   return (
@@ -182,11 +152,6 @@ export function InsureItShell() {
             );
           })}
         </nav>
-        <div className="mt-auto rounded-2xl bg-[var(--surface-muted)] p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-[var(--primary)]">Reference build</p>
-          <p className="mt-2 text-sm font-bold">Frontend-ready architecture</p>
-          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">Replace the repository and OCR adapters when connecting production services.</p>
-        </div>
       </aside>
 
       <div className="min-w-0">
@@ -197,24 +162,22 @@ export function InsureItShell() {
               <Brand compact />
             </div>
             <div className="hidden lg:block">
-              <p className="text-xs font-semibold text-[var(--muted)]">Insurance workspace</p>
               <p className="text-sm font-bold">Asset protection overview</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="hidden rounded-full bg-[var(--success-soft)] px-3 py-1 text-xs font-bold text-[var(--success)] sm:inline-flex">Local demo mode</span>
-              <Button variant="ghost" size="icon" aria-label="Notifications"><Bell size={18} /></Button>
-              <div className="grid size-9 place-items-center rounded-full bg-[var(--primary)] text-xs font-extrabold text-white">MB</div>
             </div>
           </div>
         </header>
 
         <main className="mx-auto max-w-[1600px] px-4 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-10 lg:pt-8">
-          {store.persistenceError ? (
-            <div role="alert" className="mb-5 rounded-2xl border border-[var(--danger)] bg-[var(--danger-soft)] p-4 text-sm font-semibold text-[var(--danger)]">
-              {store.persistenceError}
+          {store.loadError && !loadFailed ? (
+            <div role="alert" className="mb-5 flex flex-col gap-3 rounded-2xl border border-[var(--danger)] bg-[var(--danger-soft)] p-4 text-sm font-semibold text-[var(--danger)] sm:flex-row sm:items-center sm:justify-between">
+              <span>{store.loadError}</span>
+              <Button variant="secondary" size="sm" onClick={() => void store.refresh()}><RefreshCw size={14} /> Try again</Button>
             </div>
           ) : null}
           {renderView()}
+          <div hidden={view !== "capture"}>
+            <DeviceCapture registered={registeredCaptures} onCancel={() => navigate("dashboard")} onContinue={capture => { setDraft(capture); setView("form"); }} />
+          </div>
         </main>
       </div>
 

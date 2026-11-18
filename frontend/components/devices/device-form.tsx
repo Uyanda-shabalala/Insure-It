@@ -1,124 +1,78 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Camera, Check, ImageIcon, Loader2, ShieldCheck } from "lucide-react";
+import { Check, Info, Loader2, RefreshCw, ScanLine } from "lucide-react";
 import { useForm } from "react-hook-form";
-import {
-  deviceFormSchema,
-  deviceTypes,
-  insurerOptions,
-  type Device,
-  type DeviceDraft,
-  type DeviceFormValues,
-} from "@/lib/domain/device";
-import { imageFileToDataUrl } from "@/lib/services/image-service";
+import { deviceFormSchema, type DeviceDraft, type DeviceFormValues } from "@/lib/domain/device";
+import { useReferenceData } from "@/hooks/use-reference-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
-function defaultValues(device?: Device, draft?: DeviceDraft): DeviceFormValues {
-  const typeKnown = device ? deviceTypes.includes(device.type as (typeof deviceTypes)[number]) : false;
-  const insurerKnown = device ? insurerOptions.includes(device.insurer as (typeof insurerOptions)[number]) : false;
-  return {
-    type: device ? (typeKnown ? (device.type as DeviceFormValues["type"]) : "Other") : "Laptop",
-    customType: device && !typeKnown ? device.type : "",
-    name: device?.name ?? "",
-    serial: device?.serial ?? draft?.serial ?? "",
-    insurer: device ? (insurerKnown ? (device.insurer as DeviceFormValues["insurer"]) : "Other") : "Outsurance",
-    customInsurer: device && !insurerKnown ? device.insurer : "",
-    policyNumber: device?.policyNumber ?? "",
-    expiryDate: device?.expiryDate ?? "",
-    premium: device?.premium?.toString() ?? "",
-    sumInsured: device?.sumInsured?.toString() ?? "",
-    photo: device?.photo ?? draft?.photo ?? null,
-  };
-}
-
 interface DeviceFormProps {
-  device?: Device;
   draft?: DeviceDraft;
-  onSave: (values: DeviceFormValues) => void;
+  /** Must throw on failure so the entered details are kept and the message is shown. */
+  onSave: (values: DeviceFormValues) => Promise<void>;
   onCancel: () => void;
 }
 
-export function DeviceForm({ device, draft, onSave, onCancel }: DeviceFormProps) {
-  const photoInput = useRef<HTMLInputElement>(null);
-  const [photoError, setPhotoError] = useState<string | null>(null);
-  const [photoBusy, setPhotoBusy] = useState(false);
+export function DeviceForm({ draft, onSave, onCancel }: DeviceFormProps) {
+  const reference = useReferenceData();
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
-    watch,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<DeviceFormValues>({
     resolver: zodResolver(deviceFormSchema),
-    defaultValues: defaultValues(device, draft),
+    defaultValues: { name: "", serialNumber: draft?.serial ?? "", brandId: "", deviceTypeId: "", model: "", location: "" },
   });
 
-  const type = watch("type");
-  const insurer = watch("insurer");
-  const photo = watch("photo");
-
-  async function handlePhoto(file?: File) {
-    if (!file) return;
-    setPhotoBusy(true);
-    setPhotoError(null);
+  async function submit(values: DeviceFormValues) {
+    setSubmitError(null);
     try {
-      setValue("photo", await imageFileToDataUrl(file), { shouldDirty: true });
+      await onSave(values);
     } catch (caught) {
-      setPhotoError(caught instanceof Error ? caught.message : "The image could not be processed.");
-    } finally {
-      setPhotoBusy(false);
+      // Not retried automatically: a timed-out registration may already have been saved.
+      setSubmitError(caught instanceof Error ? caught.message : "The device could not be saved.");
     }
   }
 
   const fieldError = (name: keyof DeviceFormValues) =>
     errors[name]?.message ? <p className="mt-1 text-xs font-semibold text-[var(--danger)]">{errors[name]?.message}</p> : null;
 
+  const dropdownsReady = !reference.loading && !reference.error && reference.brands.length > 0 && reference.deviceTypes.length > 0;
+
   return (
-    <form className="space-y-6" onSubmit={handleSubmit(onSave)} noValidate>
+    <form className="space-y-6" onSubmit={handleSubmit(submit)} noValidate>
       <header>
-        <p className="text-sm font-bold text-[var(--primary)]">{device ? "Record maintenance" : "New insured asset"}</p>
-        <h1 className="mt-1 text-3xl font-extrabold tracking-tight">{device ? "Edit device details" : "Complete device details"}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">Capture the evidence needed to identify the device and validate its insurance cover.</p>
+        <p className="text-sm font-bold text-[var(--primary)]">New device</p>
+        <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Register a device</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">Enter the details that identify the device. Insurance and assignment can be added later.</p>
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div>
-                <CardTitle>Device evidence</CardTitle>
-                <CardDescription>Optional image used to support identification.</CardDescription>
+          {draft ? (
+            <Card className="p-5">
+              <div className="flex items-start gap-3">
+                <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]"><ScanLine size={18} /></div>
+                <div>
+                  <p className="text-sm font-bold">Serial number read from your photo</p>
+                  <p className="mt-1 text-xs leading-5 text-[var(--muted)]">Check it against the device label and correct it if needed before saving.</p>
+                </div>
               </div>
-              <Camera className="text-[var(--primary)]" size={20} />
-            </CardHeader>
-            <CardContent>
-              <div className="grid aspect-[4/3] place-items-center overflow-hidden rounded-2xl border bg-[var(--surface-muted)]">
-                {photo ? <img src={photo} alt="Device evidence" className="size-full object-cover" /> : <ImageIcon className="text-[var(--muted)]" size={34} />}
-              </div>
-              {photoError ? <p className="mt-2 text-xs font-semibold text-[var(--danger)]">{photoError}</p> : null}
-              <div className="mt-4 flex gap-2">
-                <Button className="flex-1" variant="secondary" onClick={() => photoInput.current?.click()} disabled={photoBusy}>
-                  {photoBusy ? <Loader2 className="animate-spin" size={16} /> : <Camera size={16} />}
-                  {photo ? "Replace image" : "Add image"}
-                </Button>
-                {photo ? <Button variant="ghost" onClick={() => setValue("photo", null, { shouldDirty: true })}>Remove</Button> : null}
-              </div>
-              <input ref={photoInput} type="file" accept="image/*" className="hidden" onChange={(event) => void handlePhoto(event.target.files?.[0])} />
-            </CardContent>
-          </Card>
-
+            </Card>
+          ) : null}
           <Card className="p-5">
             <div className="flex items-start gap-3">
-              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--success-soft)] text-[var(--success)]"><ShieldCheck size={18} /></div>
+              <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--success-soft)] text-[var(--success)]"><Info size={18} /></div>
               <div>
-                <p className="text-sm font-bold">Validation built in</p>
-                <p className="mt-1 text-xs leading-5 text-[var(--muted)]">Required fields, custom providers, and numeric cover values are validated before the record is saved.</p>
+                <p className="text-sm font-bold">Nothing else is required</p>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted)]">A device can be registered without insurance and without an assigned employee. New devices start as available.</p>
               </div>
             </div>
           </Card>
@@ -127,102 +81,71 @@ export function DeviceForm({ device, draft, onSave, onCancel }: DeviceFormProps)
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Insurance record</CardTitle>
-              <CardDescription>Fields marked required must be completed.</CardDescription>
+              <CardTitle>Device details</CardTitle>
+              <CardDescription>Fields marked * are required.</CardDescription>
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="type">Device type *</Label>
-                <Select id="type" {...register("type")} aria-invalid={Boolean(errors.type)}>
-                  {deviceTypes.map((option) => <option key={option} value={option}>{option}</option>)}
-                </Select>
-                {fieldError("type")}
-              </div>
-              {type === "Other" ? (
-                <div>
-                  <Label htmlFor="customType">Custom type *</Label>
-                  <Input id="customType" {...register("customType")} aria-invalid={Boolean(errors.customType)} />
-                  {fieldError("customType")}
-                </div>
-              ) : (
-                <div>
-                  <Label htmlFor="name">Device name *</Label>
-                  <Input id="name" placeholder='e.g. MacBook Pro 14"' {...register("name")} aria-invalid={Boolean(errors.name)} />
-                  {fieldError("name")}
-                </div>
-              )}
-            </div>
-
-            {type === "Other" ? (
-              <div>
-                <Label htmlFor="name">Device name *</Label>
-                <Input id="name" placeholder="e.g. Studio workstation" {...register("name")} aria-invalid={Boolean(errors.name)} />
-                {fieldError("name")}
+            {reference.error ? (
+              <div role="alert" className="flex flex-col gap-3 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] p-4 text-sm font-semibold text-[var(--danger)] sm:flex-row sm:items-center sm:justify-between">
+                <span>{reference.error} The brand and device type lists are needed to register a device.</span>
+                <Button variant="secondary" size="sm" onClick={() => void reference.reload()}><RefreshCw size={14} /> Try again</Button>
               </div>
             ) : null}
 
-            <div className="grid gap-5 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="serial">Serial number</Label>
-                <Input id="serial" placeholder="Serial or asset identifier" {...register("serial")} />
-              </div>
-              <div>
-                <Label htmlFor="policyNumber">Policy number</Label>
-                <Input id="policyNumber" placeholder="Provider policy reference" {...register("policyNumber")} />
-              </div>
+            <div>
+              <Label htmlFor="name">Device name *</Label>
+              <Input id="name" placeholder='e.g. Finance laptop 04' {...register("name")} aria-invalid={Boolean(errors.name)} />
+              {fieldError("name")}
+            </div>
+
+            <div>
+              <Label htmlFor="serialNumber">Serial number</Label>
+              <Input id="serialNumber" placeholder="Serial or asset identifier" {...register("serialNumber")} aria-invalid={Boolean(errors.serialNumber)} />
+              {fieldError("serialNumber")}
             </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
-                <Label htmlFor="insurer">Insurance provider *</Label>
-                <Select id="insurer" {...register("insurer")} aria-invalid={Boolean(errors.insurer)}>
-                  {insurerOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                <Label htmlFor="brandId">Brand *</Label>
+                <Select id="brandId" {...register("brandId")} disabled={reference.loading || !reference.brands.length} aria-invalid={Boolean(errors.brandId)}>
+                  <option value="">{reference.loading ? "Loading brands…" : reference.brands.length ? "Select a brand" : "No brands available"}</option>
+                  {reference.brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
                 </Select>
-                {fieldError("insurer")}
+                {fieldError("brandId")}
               </div>
-              {insurer === "Other" ? (
-                <div>
-                  <Label htmlFor="customInsurer">Provider name *</Label>
-                  <Input id="customInsurer" {...register("customInsurer")} aria-invalid={Boolean(errors.customInsurer)} />
-                  {fieldError("customInsurer")}
-                </div>
-              ) : (
-                <div>
-                  <Label htmlFor="expiryDate">Cover expiry date *</Label>
-                  <Input id="expiryDate" type="date" {...register("expiryDate")} aria-invalid={Boolean(errors.expiryDate)} />
-                  {fieldError("expiryDate")}
-                </div>
-              )}
-            </div>
-
-            {insurer === "Other" ? (
               <div>
-                <Label htmlFor="expiryDate">Cover expiry date *</Label>
-                <Input id="expiryDate" type="date" {...register("expiryDate")} aria-invalid={Boolean(errors.expiryDate)} />
-                {fieldError("expiryDate")}
+                <Label htmlFor="deviceTypeId">Device type *</Label>
+                <Select id="deviceTypeId" {...register("deviceTypeId")} disabled={reference.loading || !reference.deviceTypes.length} aria-invalid={Boolean(errors.deviceTypeId)}>
+                  <option value="">{reference.loading ? "Loading types…" : reference.deviceTypes.length ? "Select a device type" : "No device types available"}</option>
+                  {reference.deviceTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
+                </Select>
+                {fieldError("deviceTypeId")}
               </div>
-            ) : null}
+            </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
               <div>
-                <Label htmlFor="premium">Monthly premium (R)</Label>
-                <Input id="premium" inputMode="decimal" type="number" min="0" step="0.01" placeholder="0.00" {...register("premium")} aria-invalid={Boolean(errors.premium)} />
-                {fieldError("premium")}
+                <Label htmlFor="model">Model</Label>
+                <Input id="model" placeholder="e.g. Latitude 5420" {...register("model")} aria-invalid={Boolean(errors.model)} />
+                {fieldError("model")}
               </div>
               <div>
-                <Label htmlFor="sumInsured">Sum insured (R)</Label>
-                <Input id="sumInsured" inputMode="decimal" type="number" min="0" step="1" placeholder="0" {...register("sumInsured")} aria-invalid={Boolean(errors.sumInsured)} />
-                {fieldError("sumInsured")}
+                <Label htmlFor="location">Location</Label>
+                <Input id="location" placeholder="e.g. IT department" {...register("location")} aria-invalid={Boolean(errors.location)} />
+                {fieldError("location")}
               </div>
             </div>
+
+            {submitError ? (
+              <p role="alert" className="rounded-xl bg-[var(--danger-soft)] p-3 text-sm font-semibold text-[var(--danger)]">{submitError}</p>
+            ) : null}
 
             <div className="flex flex-col-reverse gap-2 border-t pt-5 sm:flex-row sm:justify-end">
               <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting || photoBusy}>
+              <Button type="submit" disabled={isSubmitting || !dropdownsReady}>
                 {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
-                {device ? "Save changes" : "Save device"}
+                Register device
               </Button>
             </div>
           </CardContent>

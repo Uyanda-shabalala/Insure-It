@@ -1,7 +1,7 @@
 {
   "name": "Insure-It",
   "short_name": "Insure-It",
-  "description": "Device insurance inventory and claims workspace",
+  "description": "IT asset inventory, device registration, and employee assignment workspace",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0b10",

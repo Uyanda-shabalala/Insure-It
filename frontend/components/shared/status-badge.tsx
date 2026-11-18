@@ -1,13 +1,9 @@
 import { Badge } from "@/components/ui/badge";
-import type { DeviceStatus } from "@/lib/domain/device";
+import { normalizeStatus, statusLabel } from "@/lib/format";
 
-const labels: Record<DeviceStatus, string> = {
-  active: "Active",
-  expiring: "Expiring soon",
-  expired: "Expired",
-};
-
-export function StatusBadge({ status }: { status: DeviceStatus }) {
-  const variant = status === "active" ? "success" : status === "expiring" ? "warning" : "danger";
-  return <Badge variant={variant}>{labels[status]}</Badge>;
+/** Lifecycle status badge. Takes the raw backend status string. */
+export function StatusBadge({ status }: { status: string }) {
+  const kind = normalizeStatus(status);
+  const variant = kind === "available" ? "success" : kind === "assigned" ? "default" : kind === "under_repair" ? "warning" : "neutral";
+  return <Badge variant={variant}>{statusLabel(status)}</Badge>;
 }

@@ -9,7 +9,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
       <section className="w-full max-w-lg rounded-3xl border bg-[var(--surface)] p-8 text-center shadow-sm">
         <AlertTriangle className="mx-auto mb-4 text-[var(--danger)]" size={34} />
         <h1 className="text-2xl font-bold">Something went wrong</h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">The workspace could not be rendered. Your locally saved data has not been removed.</p>
+        <p className="mt-2 text-sm text-[var(--muted)]">The workspace could not be rendered. Try again to reload your device records.</p>
         <Button className="mt-6" onClick={reset}>
           <RotateCcw size={16} /> Try again
         </Button>

@@ -1,6 +1,7 @@
-import { AlertTriangle, Banknote, Building2, Layers3, Plus, ShieldCheck, WalletCards } from "lucide-react";
+import { Building2, CheckCircle2, Layers3, Plus, ShieldCheck, UserCheck, Wrench } from "lucide-react";
 import type { Device } from "@/lib/domain/device";
-import { formatCurrency, formatRelativeTime, getDeviceStatus, summarizeDevices } from "@/lib/format";
+import { brandModel, formatDate, formatRelativeTime, getCoverStatus, summarizeDevices } from "@/lib/format";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeviceIcon } from "@/components/shared/device-icon";
@@ -16,10 +17,11 @@ interface DashboardViewProps {
 
 export function DashboardView({ devices, onAdd, onOpenDevice, onOpenInventory }: DashboardViewProps) {
   const summary = summarizeDevices(devices);
-  const recent = [...devices].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 5);
+  const recent = [...devices].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")).slice(0, 5);
+  // Insurance is optional: only devices with a linked policy that is expiring or expired are listed.
   const attention = devices
-    .filter((device) => getDeviceStatus(device.expiryDate) !== "active")
-    .sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
+    .filter((device) => device.insurancePolicy && getCoverStatus(device.insurancePolicy.endDate) !== "active")
+    .sort((a, b) => (a.insurancePolicy?.endDate ?? "").localeCompare(b.insurancePolicy?.endDate ?? ""))
     .slice(0, 4);
 
   return (
@@ -28,11 +30,11 @@ export function DashboardView({ devices, onAdd, onOpenDevice, onOpenInventory }:
         <div className="grid gap-6 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--primary)_18%,var(--surface)),var(--surface)_62%)] p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-[var(--primary-soft)] px-3 py-1 text-xs font-bold text-[var(--primary)]">
-              <ShieldCheck size={14} /> Insurance asset control
+              <ShieldCheck size={14} /> Device asset control
             </div>
-            <h1 className="mt-4 max-w-2xl text-3xl font-extrabold tracking-tight sm:text-4xl">Every insured device, policy, and claim in one place.</h1>
+            <h1 className="mt-4 max-w-2xl text-3xl font-extrabold tracking-tight sm:text-4xl">Every registered device and who holds it, in one place.</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--muted)] sm:text-base">
-              Keep serials, cover values, renewal dates, evidence, and claims ready for action without relying on scattered spreadsheets.
+              Register devices, see what is available, assign equipment to employees, and track insurance policies without scattered spreadsheets.
             </p>
           </div>
           <Button size="lg" onClick={onAdd} className="w-full lg:w-auto">
@@ -42,40 +44,44 @@ export function DashboardView({ devices, onAdd, onOpenDevice, onOpenInventory }:
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Insured devices" value={summary.total} helper={`${summary.active} with active cover`} icon={Layers3} />
-        <MetricCard label="Needs attention" value={summary.expiring + summary.expired} helper={`${summary.expiring} expiring, ${summary.expired} expired`} icon={AlertTriangle} />
-        <MetricCard label="Monthly premium" value={formatCurrency(summary.monthlyPremium)} helper={`Across ${summary.insurers} insurers`} icon={WalletCards} />
-        <MetricCard label="Total insured value" value={formatCurrency(summary.sumInsured)} helper={`${summary.claims} claims recorded`} icon={Banknote} />
+        <MetricCard label="Registered devices" value={summary.total} helper="Total in the inventory" icon={Layers3} />
+        <MetricCard label="Available" value={summary.available} helper="Ready to assign" icon={CheckCircle2} />
+        <MetricCard label="Assigned" value={summary.assigned} helper="Currently with an employee" icon={UserCheck} />
+        <MetricCard label="Under repair" value={summary.underRepair} helper="Not available for use" icon={Wrench} />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
         <Card>
           <CardHeader>
             <div>
-              <CardTitle>Recent activity</CardTitle>
-              <CardDescription>Recently added or updated device records.</CardDescription>
+              <CardTitle>Recent devices</CardTitle>
+              <CardDescription>The most recently registered devices and their status.</CardDescription>
             </div>
             <Button variant="ghost" size="sm" onClick={onOpenInventory}>View all</Button>
           </CardHeader>
           <CardContent>
-            <div className="divide-y">
-              {recent.map((device) => (
-                <button
-                  key={device.id}
-                  onClick={() => onOpenDevice(device.id)}
-                  className="focus-ring flex w-full items-center gap-3 rounded-xl px-1 py-3 text-left transition hover:bg-[var(--surface-muted)]"
-                >
-                  <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-[var(--surface-muted)] text-[var(--primary)]">
-                    {device.photo ? <img src={device.photo} alt="" className="size-full object-cover" /> : <DeviceIcon type={device.type} />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold">{device.name}</p>
-                    <p className="truncate text-xs text-[var(--muted)]">{device.insurer} · {formatRelativeTime(device.updatedAt)}</p>
-                  </div>
-                  <StatusBadge status={getDeviceStatus(device.expiryDate)} />
-                </button>
-              ))}
-            </div>
+            {recent.length ? (
+              <div className="divide-y">
+                {recent.map((device) => (
+                  <button
+                    key={device.id}
+                    onClick={() => onOpenDevice(device.id)}
+                    className="focus-ring flex w-full items-center gap-3 rounded-xl px-1 py-3 text-left transition hover:bg-[var(--surface-muted)]"
+                  >
+                    <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-[var(--surface-muted)] text-[var(--primary)]">
+                      <DeviceIcon type={device.deviceTypeName} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold">{device.name}</p>
+                      <p className="truncate text-xs text-[var(--muted)]">{[brandModel(device), formatRelativeTime(device.createdAt)].filter(Boolean).join(" · ")}</p>
+                    </div>
+                    <StatusBadge status={device.status} />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed bg-[var(--surface-muted)] p-6 text-sm text-[var(--muted)]">No devices registered yet. Add a device to see it here.</div>
+            )}
           </CardContent>
         </Card>
 
@@ -83,7 +89,7 @@ export function DashboardView({ devices, onAdd, onOpenDevice, onOpenInventory }:
           <CardHeader>
             <div>
               <CardTitle>Renewal watch</CardTitle>
-              <CardDescription>Policies requiring the next action.</CardDescription>
+              <CardDescription>Insurance policies that are expiring or have expired.</CardDescription>
             </div>
             <div className="grid size-10 place-items-center rounded-xl bg-[var(--warning-soft)] text-[var(--warning)]">
               <Building2 size={18} />
@@ -92,23 +98,26 @@ export function DashboardView({ devices, onAdd, onOpenDevice, onOpenInventory }:
           <CardContent>
             {attention.length ? (
               <div className="space-y-3">
-                {attention.map((device) => (
-                  <button
-                    key={device.id}
-                    onClick={() => onOpenDevice(device.id)}
-                    className="focus-ring flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left hover:bg-[var(--surface-muted)]"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold">{device.name}</p>
-                      <p className="mt-1 text-xs text-[var(--muted)]">{device.insurer} · {device.expiryDate}</p>
-                    </div>
-                    <StatusBadge status={getDeviceStatus(device.expiryDate)} />
-                  </button>
-                ))}
+                {attention.map((device) => {
+                  const cover = getCoverStatus(device.insurancePolicy?.endDate ?? null);
+                  return (
+                    <button
+                      key={device.id}
+                      onClick={() => onOpenDevice(device.id)}
+                      className="focus-ring flex w-full items-center justify-between gap-3 rounded-xl border p-3 text-left hover:bg-[var(--surface-muted)]"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold">{device.name}</p>
+                        <p className="mt-1 text-xs text-[var(--muted)]">{device.insurancePolicy?.insurerName} · {formatDate(device.insurancePolicy?.endDate)}</p>
+                      </div>
+                      <Badge variant={cover === "expired" ? "danger" : "warning"}>{cover === "expired" ? "Expired" : "Expiring soon"}</Badge>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="rounded-2xl bg-[var(--success-soft)] p-5 text-sm text-[var(--success)]">
-                All policies are outside the 90-day renewal window.
+                No linked policies are expiring within 90 days.
               </div>
             )}
           </CardContent>
