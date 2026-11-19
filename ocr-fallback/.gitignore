@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+photos/
+labels.csv
+labels_blind.csv
+labels_set2.csv
